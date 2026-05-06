@@ -191,11 +191,15 @@ export default function AdminApp() {
     const nextDisabled = enabled
       ? disabledSpecialDayIds.filter((id) => id !== eventId)
       : [...new Set([...disabledSpecialDayIds, eventId])];
+    const nextEvents = specialDayEvents.map((event) => (
+      event.id === eventId ? { ...event, enabled } : event
+    ));
     setDisabledSpecialDayIds(nextDisabled);
+    setSpecialDayEvents(nextEvents);
     await persistSettings(
       nextDisabled,
       keywords,
-      specialDayEvents,
+      nextEvents,
       enabled ? "Giornata evento attivata" : "Giornata evento disattivata"
     );
   }
