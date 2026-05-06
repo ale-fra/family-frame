@@ -106,13 +106,35 @@ sudo loginctl enable-linger alessandro
 
 ## Calendar
 
-By default the frame reads Google Calendar through the local server endpoint at `/api/calendar.ics`.
-The server proxies the configured private iCal feed, caches it briefly, and keeps the calendar URL out
-of the browser config. For local runs, provide the source feed with:
+By default the frame reads calendars through the local server endpoint at `/api/calendar.ics`.
+The server proxies the configured private iCal feeds, caches them briefly, and keeps the calendar URLs
+out of the browser config. For one calendar, provide the source feed with:
 
 ```bash
 FRAME_CALENDAR_ICS_URL="https://calendar.google.com/calendar/ical/..." npm run server
 ```
+
+For multiple calendars, use a private JSON sources file. Keep `.env` small and point it at the
+file:
+
+```bash
+FRAME_CALENDAR_SOURCES_FILE=/home/alessandro/Code/frame/data/calendar-sources.json
+```
+
+Then create `data/calendar-sources.json`:
+
+```json
+{
+  "sources": [
+    { "label": "Famiglia", "icsUrl": "https://calendar.google.com/calendar/ical/family..." },
+    { "label": "Scuola", "icsUrl": "https://calendar.google.com/calendar/ical/school..." },
+    { "label": "Lavoro", "icsUrl": "https://calendar.google.com/calendar/ical/work..." }
+  ]
+}
+```
+
+`data/` is ignored by git, so the private iCal URLs stay local. A template is available at
+`docs/calendar-sources.example.json`.
 
 For the systemd service, keep the private URL in the project `.env` file:
 
@@ -122,10 +144,24 @@ nano .env
 ```
 
 ```bash
-FRAME_CALENDAR_ICS_URL=https://calendar.google.com/calendar/ical/...
+FRAME_CALENDAR_SOURCES_FILE=/home/alessandro/Code/frame/data/calendar-sources.json
 ```
 
-The `.env` file is intentionally ignored by git because the private iCal URL is an access token.
+The `.env` file is intentionally ignored by git because private iCal URLs are access tokens.
+
+`/api/calendar.ics` merges every configured feed into one calendar. `/api/calendar-sources.json`
+exposes only safe metadata to the browser: labels and per-source proxy endpoints. The private Google
+URLs are never sent to the browser.
+
+The frame highlights important events in two ways. Any title that starts with `!`, for example
+`! Visita pediatra`, is highlighted and displayed without the prefix. It also highlights titles that
+match the global `calendar.importantKeywords` dictionary in `public/frame.config.json`, with words
+such as `compleanno`, `colloquio`, `visita`, `pediatra`, `scadenza`, `viaggio`, and `volo`.
+The dictionary can be edited from `/admin`; changes are stored locally in `data/settings.sqlite` and
+override the checked-in default config.
+
+The older `FRAME_CALENDAR_ICS_URLS` comma-separated env var still works as a fallback, but it has no
+labels and is less readable for 5-6 calendars.
 
 For fully offline/static use, replace `public/calendar/family.ics` with an exported calendar and point
 `frame.config.json` `calendar.icsUrl` back to `/calendar/family.ics`.

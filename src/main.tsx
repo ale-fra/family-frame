@@ -17,6 +17,8 @@ type FrameConfig = {
   };
   calendar: {
     icsUrl: string;
+    sourcesUrl?: string;
+    sources?: CalendarSource[];
     lookaheadDays: number;
     maxEvents: number;
     importantKeywords: string[];
@@ -24,6 +26,22 @@ type FrameConfig = {
   slideshow: {
     intervalSeconds: number;
   };
+};
+
+type FrameSettings = {
+  calendar?: {
+    importantKeywords?: string[];
+  };
+};
+
+type CalendarSource = {
+  label: string;
+  icsUrl: string;
+  enabled?: boolean;
+};
+
+type CalendarSourcesManifest = {
+  sources: CalendarSource[];
 };
 
 type Photo = {
@@ -69,6 +87,7 @@ type WeatherState = {
 type CalendarEvent = {
   id: string;
   title: string;
+  calendarName?: string;
   startsAt: Date;
   endsAt?: Date;
   allDay: boolean;
@@ -89,9 +108,53 @@ const defaultConfig: FrameConfig = {
   },
   calendar: {
     icsUrl: "/calendar/family.ics",
-    lookaheadDays: 13,
+    sourcesUrl: "/api/calendar-sources.json",
+    sources: [],
+    lookaheadDays: 12,
     maxEvents: 6,
-    importantKeywords: ["compleanno", "anniversario", "dottore", "viaggio", "scuola", "famiglia", "birthday", "anniversary", "doctor", "travel", "school", "family"]
+    importantKeywords: [
+      "compleanno",
+      "anniversario",
+      "colloquio",
+      "riunione scuola",
+      "ricevimento",
+      "recita",
+      "saggio",
+      "gita",
+      "scadenza",
+      "pagamento",
+      "bolletta",
+      "visita",
+      "dottore",
+      "medico",
+      "pediatra",
+      "dentista",
+      "vaccino",
+      "esame",
+      "analisi",
+      "ospedale",
+      "partenza",
+      "viaggio",
+      "vacanza",
+      "londra",
+      "milano",
+      "volo",
+      "treno",
+      "prenotazione",
+      "documenti",
+      "passaporto",
+      "carta identità",
+      "birthday",
+      "anniversary",
+      "parent teacher",
+      "doctor",
+      "dentist",
+      "vaccine",
+      "exam",
+      "deadline",
+      "travel",
+      "flight"
+    ]
   },
   slideshow: {
     intervalSeconds: 18
@@ -123,10 +186,25 @@ function FrameApp() {
   const shuffleQueueRef = React.useRef<number[]>([]);
 
   React.useEffect(() => {
-    fetch("/frame.config.json", { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : defaultConfig))
-      .then((loadedConfig: Partial<FrameConfig>) => setConfig(mergeConfig(loadedConfig)))
-      .catch(() => setConfig(defaultConfig));
+    let cancelled = false;
+
+    async function loadConfig() {
+      try {
+        const response = await fetch("/frame.config.json", { cache: "no-store" });
+        const loadedConfig = response.ok ? await response.json() as Partial<FrameConfig> : defaultConfig;
+        const settings = await fetchFrameSettings();
+        if (!cancelled) setConfig(mergeConfig(loadedConfig, settings));
+      } catch {
+        if (!cancelled) setConfig(defaultConfig);
+      }
+    }
+
+    loadConfig();
+    const interval = window.setInterval(loadConfig, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, []);
 
   React.useEffect(() => {
@@ -231,15 +309,34 @@ function FrameApp() {
   }, [config.weather]);
 
   React.useEffect(() => {
-    fetch(config.calendar.icsUrl, { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok) throw new Error("Calendar unavailable");
-        return response.text();
-      })
-      .then((calendarText) => {
-        setEvents(parseEvents(calendarText, config.calendar.lookaheadDays, config.calendar.importantKeywords));
-      })
-      .catch(() => setEvents([]));
+    let cancelled = false;
+
+    async function loadCalendarEvents() {
+      const sources = await calendarSources(config.calendar);
+      const loadedEvents = await Promise.allSettled(
+        sources.map(async (source) => {
+          const response = await fetch(source.icsUrl, { cache: "no-store" });
+          if (!response.ok) throw new Error(`Calendar unavailable: ${source.label}`);
+          const calendarText = await response.text();
+          return parseEvents(calendarText, config.calendar.lookaheadDays, config.calendar.importantKeywords, source.label);
+        })
+      );
+
+      if (cancelled) return;
+
+      setEvents(
+        uniqueCalendarEvents(loadedEvents.flatMap((result) => (result.status === "fulfilled" ? result.value : [])))
+          .sort(compareCalendarEvents)
+      );
+    }
+
+    loadCalendarEvents().catch(() => {
+      if (!cancelled) setEvents([]);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [config.calendar]);
 
   const activePhoto = photos[photoIndex];
@@ -302,7 +399,10 @@ function FrameApp() {
               {events.slice(0, config.calendar.maxEvents).map((event) => (
                 <article className={event.important ? "event important" : "event"} key={event.id}>
                   <div className="event-date">{formatEventDate(event)}</div>
-                  <div className="event-title">{event.title}</div>
+                  <div className="event-title">
+                    <span>{event.title}</span>
+                    {event.calendarName ? <small>{event.calendarName}</small> : null}
+                  </div>
                 </article>
               ))}
             </div>
@@ -320,6 +420,7 @@ function AdminApp() {
   const [activeTab, setActiveTab] = React.useState<PhotoStatus>("pending");
   const [pin, setPin] = React.useState(() => window.localStorage.getItem("frameAdminPin") || "");
   const [draftPin, setDraftPin] = React.useState(pin);
+  const [importantKeywordsText, setImportantKeywordsText] = React.useState(defaultConfig.calendar.importantKeywords.join("\n"));
   const [needsPin, setNeedsPin] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState("Caricamento libreria");
@@ -348,6 +449,36 @@ function AdminApp() {
   React.useEffect(() => {
     loadPhotos();
   }, [loadPhotos]);
+
+  const loadSettings = React.useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/settings", {
+        cache: "no-store",
+        headers: authHeaders(pin)
+      });
+      if (response.status === 401) {
+        setNeedsPin(true);
+        return;
+      }
+
+      const baseConfigResponse = await fetch("/frame.config.json", { cache: "no-store" });
+      const baseConfig = baseConfigResponse.ok ? mergeConfig(await baseConfigResponse.json() as Partial<FrameConfig>) : defaultConfig;
+      if (!response.ok) {
+        setImportantKeywordsText(baseConfig.calendar.importantKeywords.join("\n"));
+        return;
+      }
+
+      const settings = await response.json() as FrameSettings;
+      const keywords = settings.calendar?.importantKeywords || baseConfig.calendar.importantKeywords;
+      setImportantKeywordsText(keywords.join("\n"));
+    } catch {
+      setImportantKeywordsText(defaultConfig.calendar.importantKeywords.join("\n"));
+    }
+  }, [pin]);
+
+  React.useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   const counts = countPhotos(photos);
   const visiblePhotos = photos.filter((photo) => photo.status === activeTab);
@@ -415,6 +546,34 @@ function AdminApp() {
     }
   }
 
+  async function saveImportantKeywords(event: React.FormEvent) {
+    event.preventDefault();
+    const importantKeywords = parseKeywordEditorValue(importantKeywordsText);
+    setBusy(true);
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders(pin)
+        },
+        body: JSON.stringify({ calendar: { importantKeywords } })
+      });
+      if (response.status === 401) {
+        setNeedsPin(true);
+        return;
+      }
+      if (!response.ok) throw new Error("Settings update failed");
+      const settings = await response.json() as FrameSettings;
+      setImportantKeywordsText((settings.calendar?.importantKeywords || importantKeywords).join("\n"));
+      setMessage("Parole importanti salvate");
+    } catch {
+      setMessage("Salvataggio parole importanti non riuscito");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main className="admin-shell">
       <header className="admin-header">
@@ -461,6 +620,21 @@ function AdminApp() {
 
           {message ? <p className="admin-message">{message}</p> : null}
 
+          <form className="settings-panel" onSubmit={saveImportantKeywords}>
+            <label htmlFor="important-keywords">Parole importanti</label>
+            <textarea
+              id="important-keywords"
+              value={importantKeywordsText}
+              onChange={(event) => setImportantKeywordsText(event.target.value)}
+              rows={8}
+              spellCheck={false}
+            />
+            <div className="settings-actions">
+              <small>Una parola o frase per riga. Puoi anche separarle con virgole.</small>
+              <button type="submit" disabled={busy}>Salva</button>
+            </div>
+          </form>
+
           <section className="photo-grid" aria-live="polite">
             {visiblePhotos.length > 0 ? (
               visiblePhotos.map((photo) => (
@@ -506,8 +680,25 @@ async function fetchApprovedPhotos() {
   }
 }
 
+async function fetchFrameSettings(): Promise<FrameSettings> {
+  try {
+    const response = await fetch("/api/settings", { cache: "no-store" });
+    if (!response.ok) return {};
+    return await response.json() as FrameSettings;
+  } catch {
+    return {};
+  }
+}
+
 function authHeaders(pin: string): Record<string, string> {
   return pin ? { "x-frame-admin-pin": pin } : {};
+}
+
+function parseKeywordEditorValue(value: string) {
+  return [...new Set(value
+    .split(/[\n,]/)
+    .map((keyword) => keyword.trim())
+    .filter(Boolean))];
 }
 
 function countPhotos(photos: AdminPhoto[]) {
@@ -536,21 +727,60 @@ function shuffle(values: number[]) {
   return copy;
 }
 
-function parseEvents(calendarText: string, lookaheadDays: number, keywords: string[]): CalendarEvent[] {
+async function calendarSources(calendar: FrameConfig["calendar"]): Promise<CalendarSource[]> {
+  const configuredSources = normalizeCalendarSources(calendar.sources);
+
+  if (configuredSources.length > 0) return configuredSources;
+
+  const manifestSources = await fetchCalendarSourcesManifest(calendar);
+  if (manifestSources.length > 0) return manifestSources;
+
+  return [{
+    label: "Famiglia",
+    icsUrl: calendar.icsUrl
+  }];
+}
+
+async function fetchCalendarSourcesManifest(calendar: FrameConfig["calendar"]) {
+  if (!calendar.sourcesUrl) return [];
+
+  try {
+    const response = await fetch(calendar.sourcesUrl, { cache: "no-store" });
+    if (!response.ok) return [];
+    const manifest = await response.json() as CalendarSourcesManifest;
+    return normalizeCalendarSources(manifest.sources);
+  } catch {
+    return [];
+  }
+}
+
+function normalizeCalendarSources(sources: CalendarSource[] | undefined) {
+  return sources
+    ?.filter((source) => source.enabled !== false && typeof source.icsUrl === "string" && source.icsUrl.trim())
+    .map((source) => ({
+      ...source,
+      label: typeof source.label === "string" && source.label.trim() ? source.label.trim() : "Calendario",
+      icsUrl: source.icsUrl.trim()
+    })) || [];
+}
+
+function parseEvents(calendarText: string, lookaheadDays: number, keywords: string[], calendarName?: string): CalendarEvent[] {
   const jcal = ICAL.parse(calendarText);
   const component = new ICAL.Component(jcal);
   const now = new Date();
   const until = new Date(now);
   until.setDate(until.getDate() + lookaheadDays);
   until.setHours(23, 59, 59, 999);
-  const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
+  const normalizedKeywords = keywords.map((keyword) => keyword.toLocaleLowerCase());
   const events: CalendarEvent[] = [];
 
   component.getAllSubcomponents("vevent").forEach((vevent, index) => {
     const event = new ICAL.Event(vevent);
-    const title = event.summary || "Untitled event";
-    const baseId = event.uid || `${title}-${index}`;
-    const important = normalizedKeywords.some((keyword) => title.toLowerCase().includes(keyword));
+    const parsedTitle = parseEventTitle(event.summary || "Untitled event");
+    const title = parsedTitle.title;
+    const sourceId = calendarName || "calendar";
+    const baseId = `${sourceId}-${event.uid || `${title}-${index}`}`;
+    const important = parsedTitle.important || titleMatchesImportantKeyword(title, normalizedKeywords);
 
     if (event.isRecurrenceException()) return;
 
@@ -572,6 +802,7 @@ function parseEvents(calendarText: string, lookaheadDays: number, keywords: stri
         events.push({
           id: `${baseId}-${startsAt.toISOString()}`,
           title,
+          calendarName,
           startsAt,
           endsAt,
           allDay: details.startDate.isDate,
@@ -585,6 +816,7 @@ function parseEvents(calendarText: string, lookaheadDays: number, keywords: stri
     events.push({
       id: baseId,
       title,
+      calendarName,
       startsAt: event.startDate.toJSDate(),
       endsAt: event.endDate?.toJSDate(),
       allDay: event.startDate.isDate,
@@ -598,6 +830,24 @@ function parseEvents(calendarText: string, lookaheadDays: number, keywords: stri
       return effectiveEnd >= now && event.startsAt <= until;
     })
     .sort(compareCalendarEvents);
+}
+
+function titleMatchesImportantKeyword(title: string, normalizedKeywords: string[]) {
+  const normalizedTitle = title.toLocaleLowerCase();
+  return normalizedKeywords.some((keyword) => normalizedTitle.includes(keyword));
+}
+
+function parseEventTitle(rawTitle: string) {
+  const trimmedTitle = rawTitle.trim();
+  if (!trimmedTitle.startsWith("!")) {
+    return { title: rawTitle, important: false };
+  }
+
+  const title = trimmedTitle.replace(/^!\s*/, "");
+  return {
+    title: title || rawTitle,
+    important: true
+  };
 }
 
 function uniqueCalendarEvents(events: CalendarEvent[]) {
@@ -632,7 +882,13 @@ function compareCalendarEvents(left: CalendarEvent, right: CalendarEvent) {
   return left.title.localeCompare(right.title);
 }
 
-function mergeConfig(loadedConfig: Partial<FrameConfig>): FrameConfig {
+function mergeConfig(loadedConfig: Partial<FrameConfig>, settings: FrameSettings = {}): FrameConfig {
+  const mergedCalendar = {
+    ...defaultConfig.calendar,
+    ...loadedConfig.calendar
+  };
+  const importantKeywords = settings.calendar?.importantKeywords;
+
   return {
     ...defaultConfig,
     ...loadedConfig,
@@ -641,8 +897,8 @@ function mergeConfig(loadedConfig: Partial<FrameConfig>): FrameConfig {
       ...loadedConfig.weather
     },
     calendar: {
-      ...defaultConfig.calendar,
-      ...loadedConfig.calendar
+      ...mergedCalendar,
+      importantKeywords: Array.isArray(importantKeywords) ? importantKeywords : mergedCalendar.importantKeywords
     },
     slideshow: {
       ...defaultConfig.slideshow,

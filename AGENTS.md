@@ -6,7 +6,7 @@ Turn an old ASUS MB169B+ USB DisplayLink monitor into a digital family frame. Th
 
 - Family photos from a local folder.
 - Current weather and short forecast.
-- Important events from an `.ics` calendar source.
+- Important events from one or more `.ics` calendar sources.
 
 The device is meant to be always-on, low-touch, and readable from a distance.
 
@@ -28,7 +28,7 @@ This is a local-first Vite + React + TypeScript app with a small local Node phot
 - `/admin` in `src/main.tsx` is the phone-oriented photo admin UI.
 - `src/styles.css` owns the full screen visual layout. The current theme intentionally uses a light digital passepartout to hide the monitor's edge bleed.
 - `server/photo-server.mjs` owns dynamic photo upload, metadata, approved-photo API, and optional Telegram ingestion.
-- `data/` stores uploaded photos and `photos.json`; it is local runtime state and is ignored by git.
+- `data/` stores uploaded photos, `photos.json`, and runtime `settings.sqlite`; it is local runtime state and is ignored by git.
 - `public/frame.config.json` is the runtime config actually served by Vite.
 - `frame.config.json` mirrors the runtime config at repo root for easy discovery/editing.
 - `public/photos/manifest.json` lists local photo files.
@@ -40,7 +40,7 @@ This is a local-first Vite + React + TypeScript app with a small local Node phot
 - `systemd/user/` contains user-service templates for server, kiosk, and periodic updates.
 - `scripts/install-displaylink-ubuntu.sh` installs the Synaptics DisplayLink APT repo and `displaylink-driver`.
 
-The browser fetches static local assets, dynamic approved photos from the local photo service, and Open-Meteo directly.
+The browser fetches static local assets, dynamic approved photos from the local photo service, calendar `.ics` endpoints, and Open-Meteo directly.
 If the photo service is unavailable, the app falls back to the static photo manifest.
 
 ## Runtime Flow
@@ -61,7 +61,7 @@ If the photo service is unavailable, the app falls back to the static photo mani
    - `/frame.config.json`.
    - Approved photos from `/api/photos?status=approved`, falling back to `photoManifestUrl`.
    - Weather from Open-Meteo.
-   - Calendar events from `calendar.icsUrl`.
+   - Calendar events from `calendar.sources`, falling back to `calendar.icsUrl`.
 
 4. Photo admin:
    - `/admin` can upload JPEG, PNG, WebP, and GIF files from a phone on the LAN.
@@ -80,9 +80,13 @@ Edit `public/frame.config.json` for runtime behavior:
 - `weather.city`: city name resolved through Open-Meteo geocoding; when set, it overrides manual coordinates.
 - `weather.showLocationLabel`: whether to show the weather location name on the frame.
 - `weather.refreshMinutes`: browser refresh interval.
-- `calendar.icsUrl`: local or remote `.ics` URL.
+- `calendar.icsUrl`: local or remote `.ics` URL, used as the legacy/default single-calendar source.
+- `calendar.sourcesUrl`: optional JSON manifest URL for safe labeled calendar source metadata from the local server.
+- `calendar.sources`: optional labeled `.ics` sources; when present, the app fetches and merges these instead of only `icsUrl`.
 - `calendar.lookaheadDays`: upcoming event window.
-- `calendar.importantKeywords`: title keywords used to visually emphasize events.
+- `calendar.importantKeywords`: global dictionary of title words that visually emphasize events across every calendar.
+- `/admin` can update `calendar.importantKeywords`; the server stores overrides in `data/settings.sqlite`.
+- Important events can also be marked explicitly in the source calendar by prefixing the event title with `!`; the frame strips the prefix when displaying the title.
 - `slideshow.intervalSeconds`: photo rotation interval.
 
 If changing config defaults in code, keep `public/frame.config.json` and root `frame.config.json` in sync unless intentionally removing the root helper copy.
@@ -121,6 +125,7 @@ FRAME_CHROMIUM_BIN=chromium npm run kiosk
 FRAME_CHROMIUM_PROFILE=~/snap/chromium/common/family-frame-profile npm run kiosk
 FRAME_APP_URL=http://127.0.0.1:5173 npm run kiosk
 FRAME_ADMIN_PIN=1234 npm run server
+FRAME_CALENDAR_SOURCES_FILE=/home/alessandro/Code/frame/data/calendar-sources.json npm run server
 FRAME_TELEGRAM_BOT_TOKEN=123456:token FRAME_TELEGRAM_ALLOWED_CHAT_IDS=123456789 npm run server
 bash scripts/install-autostart.sh
 ```
@@ -156,6 +161,6 @@ Good next changes:
 - Add Google Calendar OAuth or a private calendar sync job, keeping `.ics` as the simplest fallback.
 - Add a systemd user service for autostart after login.
 - Add offline caching for last successful weather/calendar payloads.
-- Add a settings page or local admin route for config edits.
+- Broaden the local admin settings panel beyond calendar important keywords.
 
 Avoid large rewrites until the hardware/kiosk loop is stable. The most valuable invariant is: boot/login should lead to the correct display showing the frame without manual window dragging.

@@ -1,6 +1,10 @@
 node_modules/
 dist/
 data/
+settings.sqlite
+settings.sqlite-*
+calendar-sources.json
+*.calendar-sources.json
 .env
 .env.*
 !.env.example

@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { DatabaseSync } from "node:sqlite";
 import express from "express";
 import multer from "multer";
 
@@ -11,6 +12,8 @@ const dataDir = process.env.FRAME_DATA_DIR ? path.resolve(process.env.FRAME_DATA
 const photoDir = path.join(dataDir, "photos");
 const trashDir = path.join(dataDir, "trash");
 const dbPath = path.join(dataDir, "photos.json");
+const legacySettingsPath = path.join(dataDir, "settings.json");
+const settingsDbPath = path.join(dataDir, "settings.sqlite");
 const distDir = path.join(rootDir, "dist");
 const indexPath = path.join(distDir, "index.html");
 const refreshScript = process.env.FRAME_REFRESH_SCRIPT
@@ -20,6 +23,13 @@ const port = Number(process.env.FRAME_PHOTO_SERVER_PORT || 8787);
 const adminPin = process.env.FRAME_ADMIN_PIN || "";
 const telegramToken = process.env.FRAME_TELEGRAM_BOT_TOKEN || "";
 const calendarIcsUrl = process.env.FRAME_CALENDAR_ICS_URL || "";
+const calendarSourcesFile = process.env.FRAME_CALENDAR_SOURCES_FILE
+  ? path.resolve(process.env.FRAME_CALENDAR_SOURCES_FILE)
+  : "";
+const configuredCalendarSources = await loadCalendarSources();
+const calendarIcsUrls = configuredCalendarSources.length > 0
+  ? configuredCalendarSources.map((source) => source.icsUrl)
+  : splitEnvList(process.env.FRAME_CALENDAR_ICS_URLS || calendarIcsUrl);
 const calendarCacheMs = Number(process.env.FRAME_CALENDAR_CACHE_SECONDS || 900) * 1000;
 const allowedTelegramChats = new Set(
   (process.env.FRAME_TELEGRAM_ALLOWED_CHAT_IDS || "")
@@ -31,6 +41,8 @@ let calendarCache = {
   text: "",
   fetchedAt: 0
 };
+const sourceCalendarCache = new Map();
+let settingsDb = null;
 
 const allowedMimeTypes = new Map([
   ["image/jpeg", ".jpg"],
@@ -79,6 +91,37 @@ app.get("/api/calendar.ics", async (_request, response) => {
   }
 });
 
+app.get("/api/calendar-sources.json", (_request, response) => {
+  if (configuredCalendarSources.length === 0) {
+    response.status(404).json({ error: "Calendar sources file is not configured" });
+    return;
+  }
+
+  response.json({
+    sources: configuredCalendarSources.map((source, index) => ({
+      label: source.label,
+      icsUrl: `/api/calendars/${index + 1}.ics`,
+      enabled: source.enabled
+    }))
+  });
+});
+
+app.get("/api/calendars/:index.ics", async (request, response) => {
+  const index = Number(request.params.index) - 1;
+  if (!Number.isInteger(index) || index < 0 || index >= calendarIcsUrls.length) {
+    response.status(404).json({ error: "Calendar source not configured" });
+    return;
+  }
+
+  try {
+    const calendarText = await fetchCachedRemoteCalendar(calendarIcsUrls[index]);
+    response.type("text/calendar").set("Cache-Control", "no-store").send(calendarText);
+  } catch (error) {
+    console.error("Calendar source fetch failed:", error.message);
+    response.status(502).json({ error: "Calendar unavailable" });
+  }
+});
+
 app.get("/api/photos", async (request, response) => {
   const status = typeof request.query.status === "string" ? request.query.status : "approved";
   const photos = await listPhotos();
@@ -87,6 +130,25 @@ app.get("/api/photos", async (request, response) => {
       .filter((photo) => photo.status === status)
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
   });
+});
+
+app.get("/api/settings", async (_request, response) => {
+  response.json(await readSettings());
+});
+
+app.get("/api/admin/settings", requireAdmin, async (_request, response) => {
+  response.json(await readSettings());
+});
+
+app.put("/api/admin/settings", requireAdmin, async (request, response) => {
+  const settings = normalizeSettings(request.body);
+  if (!settings) {
+    response.status(400).json({ error: "Unsupported settings payload" });
+    return;
+  }
+
+  await writeSettings(settings);
+  response.json(settings);
 });
 
 app.get("/api/admin/photos", requireAdmin, async (_request, response) => {
@@ -188,6 +250,7 @@ function requireAdmin(request, response, next) {
 async function ensureStorage() {
   await fs.mkdir(photoDir, { recursive: true });
   await fs.mkdir(trashDir, { recursive: true });
+  await ensureSettingsDb();
   try {
     await fs.access(dbPath);
   } catch {
@@ -217,9 +280,88 @@ async function writeDb(db) {
   await fs.rename(tmpPath, dbPath);
 }
 
+async function readSettings() {
+  try {
+    const row = getSettingsDb()
+      .prepare("SELECT value FROM settings WHERE key = ?")
+      .get("frame-settings");
+    if (!row?.value) return {};
+    const parsed = JSON.parse(row.value);
+    return normalizeSettings(parsed) || {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeSettings(settings) {
+  const now = new Date().toISOString();
+  getSettingsDb()
+    .prepare(`
+      INSERT INTO settings (key, value, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET
+        value = excluded.value,
+        updated_at = excluded.updated_at
+    `)
+    .run("frame-settings", JSON.stringify(settings), now);
+}
+
+async function ensureSettingsDb() {
+  getSettingsDb().exec(`
+    PRAGMA journal_mode = WAL;
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+
+  const existing = getSettingsDb()
+    .prepare("SELECT 1 FROM settings WHERE key = ?")
+    .get("frame-settings");
+  if (existing) return;
+
+  try {
+    const text = await fs.readFile(legacySettingsPath, "utf8");
+    const legacySettings = normalizeSettings(JSON.parse(text));
+    if (legacySettings) await writeSettings(legacySettings);
+  } catch {
+    await writeSettings({});
+  }
+}
+
+function getSettingsDb() {
+  if (!settingsDb) {
+    settingsDb = new DatabaseSync(settingsDbPath);
+  }
+  return settingsDb;
+}
+
+function normalizeSettings(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+
+  const settings = {};
+  const importantKeywords = payload.calendar?.importantKeywords;
+  if (importantKeywords !== undefined) {
+    if (!Array.isArray(importantKeywords)) return null;
+    settings.calendar = {
+      importantKeywords: normalizeStringList(importantKeywords)
+    };
+  }
+
+  return settings;
+}
+
+function normalizeStringList(values) {
+  return [...new Set(values
+    .filter((value) => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean))];
+}
+
 async function fetchCalendarIcs() {
-  if (!calendarIcsUrl) {
-    throw new Error("FRAME_CALENDAR_ICS_URL is not configured");
+  if (calendarIcsUrls.length === 0) {
+    throw new Error("FRAME_CALENDAR_SOURCES_FILE, FRAME_CALENDAR_ICS_URLS, or FRAME_CALENDAR_ICS_URL is not configured");
   }
 
   const now = Date.now();
@@ -228,19 +370,8 @@ async function fetchCalendarIcs() {
   }
 
   try {
-    const response = await fetch(calendarIcsUrl, {
-      headers: {
-        Accept: "text/calendar,text/plain;q=0.9,*/*;q=0.8"
-      }
-    });
-    if (!response.ok) {
-      throw new Error(`Google Calendar returned ${response.status}`);
-    }
-
-    const calendarText = await response.text();
-    if (!calendarText.includes("BEGIN:VCALENDAR")) {
-      throw new Error("Response is not an iCalendar feed");
-    }
+    const calendars = await Promise.all(calendarIcsUrls.map(fetchCachedRemoteCalendar));
+    const calendarText = calendars.length === 1 ? calendars[0] : mergeCalendars(calendars);
 
     calendarCache = {
       text: calendarText,
@@ -254,6 +385,121 @@ async function fetchCalendarIcs() {
     }
     throw error;
   }
+}
+
+async function loadCalendarSources() {
+  if (!calendarSourcesFile) return [];
+
+  try {
+    const text = await fs.readFile(calendarSourcesFile, "utf8");
+    const parsed = JSON.parse(text);
+    const entries = Array.isArray(parsed) ? parsed : parsed.sources;
+    if (!Array.isArray(entries)) {
+      throw new Error("Calendar sources file must contain an array or a { sources: [] } object");
+    }
+
+    return entries
+      .filter((entry) => entry && entry.enabled !== false && typeof entry.icsUrl === "string" && entry.icsUrl.trim())
+      .map((entry, index) => ({
+        label: typeof entry.label === "string" && entry.label.trim() ? entry.label.trim() : `Calendario ${index + 1}`,
+        icsUrl: entry.icsUrl.trim(),
+        enabled: entry.enabled !== false
+      }));
+  } catch (error) {
+    console.error(`Calendar sources file could not be loaded from ${calendarSourcesFile}:`, error.message);
+    return [];
+  }
+}
+
+async function fetchCachedRemoteCalendar(url) {
+  const now = Date.now();
+  const cached = sourceCalendarCache.get(url);
+  if (cached?.text && now - cached.fetchedAt < calendarCacheMs) {
+    return cached.text;
+  }
+
+  try {
+    const text = await fetchRemoteCalendar(url);
+    sourceCalendarCache.set(url, { text, fetchedAt: now });
+    return text;
+  } catch (error) {
+    if (cached?.text) {
+      console.warn("Using cached calendar source after fetch failure:", error.message);
+      return cached.text;
+    }
+    throw error;
+  }
+}
+
+function splitEnvList(value) {
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+async function fetchRemoteCalendar(url) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: "text/calendar,text/plain;q=0.9,*/*;q=0.8"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`Calendar source returned ${response.status}`);
+  }
+
+  const calendarText = await response.text();
+  if (!calendarText.includes("BEGIN:VCALENDAR")) {
+    throw new Error("Response is not an iCalendar feed");
+  }
+
+  return calendarText;
+}
+
+function mergeCalendars(calendars) {
+  const body = calendars.flatMap(calendarComponentLines);
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Family Frame//Calendar Merge//EN",
+    ...body,
+    "END:VCALENDAR",
+    ""
+  ].join("\r\n");
+}
+
+function calendarComponentLines(calendarText) {
+  const lines = calendarText.split(/\r?\n/);
+  const components = [];
+  let depth = 0;
+  let current = [];
+
+  for (const line of lines) {
+    if (line === "BEGIN:VEVENT" || line === "BEGIN:VTIMEZONE") {
+      depth = 1;
+      current = [line];
+      continue;
+    }
+
+    if (depth === 0) continue;
+
+    current.push(line);
+
+    if (line.startsWith("BEGIN:")) {
+      depth += 1;
+      continue;
+    }
+
+    if (line.startsWith("END:")) {
+      depth -= 1;
+      if (depth === 0) {
+        components.push(...current);
+        current = [];
+      }
+    }
+  }
+
+  return components;
 }
 
 async function ingestBuffer(buffer, { originalName, mimeType, source }) {
