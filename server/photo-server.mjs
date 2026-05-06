@@ -134,7 +134,7 @@ app.get("/api/photos", async (request, response) => {
 });
 
 app.get("/api/settings", async (_request, response) => {
-  response.json(await readSettings());
+  response.json(await readPublicSettings());
 });
 
 app.get("/api/admin/settings", requireAdmin, async (_request, response) => {
@@ -294,6 +294,24 @@ async function readSettings() {
   } catch {
     return {};
   }
+}
+
+async function readPublicSettings() {
+  const settings = await readSettings();
+  if (!Array.isArray(settings.calendar?.sources)) return settings;
+
+  return {
+    ...settings,
+    calendar: {
+      ...settings.calendar,
+      sources: enabledCalendarSources(settings.calendar.sources).map((source, index) => ({
+        id: source.id,
+        label: source.label,
+        icsUrl: `/api/calendars/${index + 1}.ics`,
+        enabled: true
+      }))
+    }
+  };
 }
 
 async function writeSettings(settings) {
