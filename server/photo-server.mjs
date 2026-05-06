@@ -43,8 +43,19 @@ const upload = multer({
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
+app.use("/api", (_request, response, next) => {
+  response.setHeader("Cache-Control", "no-store");
+  next();
+});
 app.use("/media/photos", express.static(photoDir, { fallthrough: false }));
-app.use(express.static(distDir, { fallthrough: true }));
+app.use(express.static(distDir, {
+  fallthrough: true,
+  etag: false,
+  lastModified: false,
+  setHeaders(response) {
+    response.setHeader("Cache-Control", "no-store");
+  }
+}));
 
 await ensureStorage();
 

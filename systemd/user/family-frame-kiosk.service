@@ -12,6 +12,8 @@ Restart=always
 RestartSec=5
 Environment=DISPLAY=:0
 Environment=FRAME_APP_URL=http://127.0.0.1:8787
+Environment=FRAME_KIOSK_REPLACE_EXISTING=1
+Environment=FRAME_KIOSK_CLEANUP_ON_EXIT=1
 Environment=PATH=/home/alessandro/.config/nvm/versions/node/v24.15.0/bin:/snap/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 [Install]

@@ -2,12 +2,20 @@
 set -euo pipefail
 
 APP_URL="${FRAME_APP_URL:-http://127.0.0.1:8787}"
+KIOSK_LAUNCH_ID="$(date +%s)"
+if [[ "$APP_URL" == *\?* ]]; then
+  KIOSK_URL="${APP_URL}&frameKioskLaunch=${KIOSK_LAUNCH_ID}"
+else
+  KIOSK_URL="${APP_URL}?frameKioskLaunch=${KIOSK_LAUNCH_ID}"
+fi
 DISPLAY_VALUE="${DISPLAY:-:0}"
 PRIMARY_OUTPUT="${FRAME_PRIMARY_OUTPUT:-eDP-1}"
 FRAME_OUTPUT="${FRAME_DISPLAY_OUTPUT:-}"
 CHROMIUM_BIN="${FRAME_CHROMIUM_BIN:-chromium}"
 PHOTO_API_URL="${FRAME_PHOTO_API_URL:-http://127.0.0.1:8787/api/health}"
 CHROMIUM_LOG="${FRAME_CHROMIUM_LOG:-/tmp/family-frame-chromium.log}"
+REPLACE_EXISTING_KIOSK="${FRAME_KIOSK_REPLACE_EXISTING:-0}"
+CLEANUP_ON_EXIT="${FRAME_KIOSK_CLEANUP_ON_EXIT:-0}"
 
 if ! command -v "$CHROMIUM_BIN" >/dev/null 2>&1; then
   echo "Chromium was not found. Install Chromium or set up another kiosk browser." >&2
@@ -86,6 +94,45 @@ echo "Chromium logs: $CHROMIUM_LOG"
 
 KIOSK_PATTERN="--user-data-dir=$CHROMIUM_PROFILE"
 
+stop_existing_kiosk() {
+  if ! pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Stopping existing kiosk Chromium for profile: $CHROMIUM_PROFILE"
+  pkill -TERM -f -- "$KIOSK_PATTERN" >/dev/null 2>&1 || true
+
+  for _ in {1..20}; do
+    if ! pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.5
+  done
+
+  echo "Existing kiosk Chromium did not exit after SIGTERM; sending SIGKILL." >&2
+  pkill -KILL -f -- "$KIOSK_PATTERN" >/dev/null 2>&1 || true
+
+  for _ in {1..10}; do
+    if ! pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.5
+  done
+
+  echo "Existing kiosk Chromium is still running." >&2
+  return 1
+}
+
+cleanup_on_exit() {
+  if [[ "$CLEANUP_ON_EXIT" == "1" ]]; then
+    stop_existing_kiosk || true
+  fi
+}
+
+trap cleanup_on_exit EXIT
+trap 'cleanup_on_exit; exit 143' TERM
+trap 'cleanup_on_exit; exit 130' INT
+
 CHROMIUM_ARGS=(
   --kiosk \
   --new-window \
@@ -99,22 +146,32 @@ CHROMIUM_ARGS=(
   --disable-features=MediaRouter,OptimizationHints,PushMessaging \
   --disable-notifications \
   --disable-sync \
+  --aggressive-cache-discard \
+  --disable-application-cache \
+  --disk-cache-size=1 \
+  --media-cache-size=1 \
   --metrics-recording-only \
   --no-first-run \
   --check-for-update-interval=31536000 \
   "${WINDOW_ARGS[@]}" \
-  "$APP_URL"
+  "$KIOSK_URL"
 )
 
 if pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; then
-  echo "Kiosk Chromium is already running; monitoring existing process."
-else
+  if [[ "$REPLACE_EXISTING_KIOSK" == "1" ]]; then
+    stop_existing_kiosk
+  else
+    echo "Kiosk Chromium is already running; monitoring existing process."
+  fi
+fi
+
+if ! pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; then
   DISPLAY="$DISPLAY_VALUE" \
-  XDG_CONFIG_DIRS=/etc/xdg \
-  GTK_IM_MODULE=xim \
-  QT_IM_MODULE=xim \
-  XMODIFIERS=@im=none \
-  "$CHROMIUM_BIN" "${CHROMIUM_ARGS[@]}" >"$CHROMIUM_LOG" 2>&1 &
+    XDG_CONFIG_DIRS=/etc/xdg \
+    GTK_IM_MODULE=xim \
+    QT_IM_MODULE=xim \
+    XMODIFIERS=@im=none \
+    "$CHROMIUM_BIN" "${CHROMIUM_ARGS[@]}" >"$CHROMIUM_LOG" 2>&1 &
 fi
 
 for _ in {1..20}; do
