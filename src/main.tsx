@@ -592,12 +592,44 @@ function parseEvents(calendarText: string, lookaheadDays: number, keywords: stri
     });
   });
 
-  return events
+  return uniqueCalendarEvents(events)
     .filter((event) => {
       const effectiveEnd = event.endsAt ?? event.startsAt;
       return effectiveEnd >= now && event.startsAt <= until;
     })
-    .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
+    .sort(compareCalendarEvents);
+}
+
+function uniqueCalendarEvents(events: CalendarEvent[]) {
+  const seen = new Set<string>();
+  const uniqueEvents: CalendarEvent[] = [];
+
+  for (const event of events) {
+    const key = [
+      event.title.trim().toLowerCase(),
+      event.startsAt.getTime(),
+      event.endsAt?.getTime() ?? "",
+      event.allDay ? "all-day" : "timed"
+    ].join("|");
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueEvents.push(event);
+  }
+
+  return uniqueEvents;
+}
+
+function compareCalendarEvents(left: CalendarEvent, right: CalendarEvent) {
+  const startDifference = left.startsAt.getTime() - right.startsAt.getTime();
+  if (startDifference !== 0) return startDifference;
+
+  const leftEnd = left.endsAt?.getTime() ?? left.startsAt.getTime();
+  const rightEnd = right.endsAt?.getTime() ?? right.startsAt.getTime();
+  const endDifference = leftEnd - rightEnd;
+  if (endDifference !== 0) return endDifference;
+
+  return left.title.localeCompare(right.title);
 }
 
 function mergeConfig(loadedConfig: Partial<FrameConfig>): FrameConfig {
@@ -766,6 +798,8 @@ function formatEventDate(event: CalendarEvent) {
   }
   return new Intl.DateTimeFormat("en-GB", {
     weekday: "short",
+    day: "numeric",
+    month: "short",
     hour: "2-digit",
     minute: "2-digit"
   }).format(event.startsAt);
