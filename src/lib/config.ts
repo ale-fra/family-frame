@@ -99,6 +99,10 @@ export function mergeConfig(loadedConfig: Partial<FrameConfig>, settings: FrameS
   };
   const importantKeywords = settings.calendar?.importantKeywords;
   const disabledSpecialDayIds = new Set(settings.specialDays?.disabledIds || []);
+  const settingEvents = settings.specialDays?.events;
+  const specialDayEvents = Array.isArray(settingEvents) && settingEvents.length > 0
+    ? mergeSpecialDayEvents(mergedSpecialDays.events, settingEvents)
+    : mergedSpecialDays.events;
 
   return {
     ...defaultConfig,
@@ -111,10 +115,31 @@ export function mergeConfig(loadedConfig: Partial<FrameConfig>, settings: FrameS
     slideshow: { ...defaultConfig.slideshow, ...loadedConfig.slideshow },
     specialDays: {
       ...mergedSpecialDays,
-      events: mergedSpecialDays.events.map((event) => ({
+      events: specialDayEvents.map((event) => ({
         ...event,
         enabled: event.enabled !== false && !disabledSpecialDayIds.has(event.id)
       }))
     }
   };
+}
+
+function mergeSpecialDayEvents(baseEvents: FrameConfig["specialDays"]["events"], settingEvents: FrameConfig["specialDays"]["events"]) {
+  const baseById = new Map(baseEvents.map((event) => [event.id, event]));
+  const settingById = new Map(settingEvents.map((event) => [event.id, event]));
+  const merged = baseEvents.map((baseEvent) => {
+    const settingEvent = settingById.get(baseEvent.id);
+    if (!settingEvent) return baseEvent;
+    return {
+      ...baseEvent,
+      ...settingEvent,
+      schedule: settingEvent.schedule || baseEvent.schedule,
+      effects: settingEvent.effects || baseEvent.effects
+    };
+  });
+
+  for (const settingEvent of settingEvents) {
+    if (!baseById.has(settingEvent.id)) merged.push(settingEvent);
+  }
+
+  return merged;
 }

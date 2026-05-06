@@ -37,6 +37,7 @@ export type FrameSettings = {
   };
   specialDays?: {
     disabledIds?: string[];
+    events?: SpecialDayConfig[];
   };
 };
 

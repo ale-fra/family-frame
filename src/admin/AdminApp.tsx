@@ -1,6 +1,6 @@
 import * as React from "react";
 import "@/admin.css";
-import type { AdminPhoto, PhotoStatus, SpecialDayConfig } from "@/lib/types";
+import type { AdminPhoto, PhotoStatus, SpecialDayConfig, SpecialDaySchedule } from "@/lib/types";
 import { defaultConfig } from "@/lib/config";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -64,7 +64,7 @@ export default function AdminApp() {
     if (!pin) return;
     try {
       const bundle = await loadAdminSettings(pin);
-      setSpecialDayEvents(bundle.baseConfig.specialDays.events);
+      setSpecialDayEvents(bundle.specialDayEvents);
       setKeywordsText(bundle.importantKeywords.join("\n"));
       setDisabledSpecialDayIds(bundle.disabledSpecialDayIds);
     } catch (error) {
@@ -149,16 +149,26 @@ export default function AdminApp() {
     }
   }
 
-  async function persistSettings(nextDisabledIds: string[], nextKeywords: string[], successMessage: string) {
+  async function persistSettings(
+    nextDisabledIds: string[],
+    nextKeywords: string[],
+    nextEvents: SpecialDayConfig[],
+    successMessage: string
+  ) {
     if (!pin) return;
     setBusy(true);
     try {
       const settings = await saveAdminSettings(pin, {
         importantKeywords: nextKeywords,
-        disabledSpecialDayIds: nextDisabledIds
+        disabledSpecialDayIds: nextDisabledIds,
+        specialDayEvents: nextEvents.map((event) => ({
+          ...event,
+          enabled: event.enabled !== false && !nextDisabledIds.includes(event.id)
+        }))
       });
       setKeywordsText((settings.calendar?.importantKeywords || nextKeywords).join("\n"));
       setDisabledSpecialDayIds(settings.specialDays?.disabledIds || nextDisabledIds);
+      setSpecialDayEvents(settings.specialDays?.events || nextEvents);
       toast.success(successMessage);
     } catch (error) {
       if (error instanceof UnauthorizedError) {
@@ -173,7 +183,7 @@ export default function AdminApp() {
 
   async function saveKeywords() {
     const keywords = parseKeywordEditorValue(keywordsText);
-    await persistSettings(disabledSpecialDayIds, keywords, "Parole importanti salvate");
+    await persistSettings(disabledSpecialDayIds, keywords, specialDayEvents, "Parole importanti salvate");
   }
 
   async function toggleSpecialDay(eventId: string, enabled: boolean) {
@@ -185,8 +195,18 @@ export default function AdminApp() {
     await persistSettings(
       nextDisabled,
       keywords,
+      specialDayEvents,
       enabled ? "Giornata evento attivata" : "Giornata evento disattivata"
     );
+  }
+
+  async function updateSpecialDaySchedule(eventId: string, schedule: SpecialDaySchedule) {
+    const keywords = parseKeywordEditorValue(keywordsText);
+    const nextEvents = specialDayEvents.map((event) => (
+      event.id === eventId ? { ...event, schedule } : event
+    ));
+    setSpecialDayEvents(nextEvents);
+    await persistSettings(disabledSpecialDayIds, keywords, nextEvents, "Data giornata salvata");
   }
 
   if (needsPin) {
@@ -234,6 +254,7 @@ export default function AdminApp() {
               events={specialDayEvents}
               disabledIds={disabledSpecialDayIds}
               onToggleEvent={toggleSpecialDay}
+              onUpdateEventSchedule={updateSpecialDaySchedule}
             />
           )}
         </AdminLayout>

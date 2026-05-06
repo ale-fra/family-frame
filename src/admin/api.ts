@@ -1,4 +1,4 @@
-import type { AdminPhoto, FrameConfig, FrameSettings } from "@/lib/types";
+import type { AdminPhoto, FrameConfig, FrameSettings, SpecialDayConfig } from "@/lib/types";
 import { defaultConfig, mergeConfig } from "@/lib/config";
 
 export class UnauthorizedError extends Error {
@@ -73,6 +73,7 @@ export async function updatePhotoStatus(
 export type AdminSettingsBundle = {
   baseConfig: FrameConfig;
   importantKeywords: string[];
+  specialDayEvents: SpecialDayConfig[];
   disabledSpecialDayIds: string[];
 };
 
@@ -89,6 +90,7 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
       baseConfig,
       importantKeywords:
         settings.calendar?.importantKeywords || baseConfig.calendar.importantKeywords,
+      specialDayEvents: settings.specialDays?.events || baseConfig.specialDays.events,
       disabledSpecialDayIds: settings.specialDays?.disabledIds || []
     };
   } catch (error) {
@@ -96,6 +98,7 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
     return {
       baseConfig,
       importantKeywords: baseConfig.calendar.importantKeywords,
+      specialDayEvents: baseConfig.specialDays.events,
       disabledSpecialDayIds: []
     };
   }
@@ -103,7 +106,11 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
 
 export async function saveAdminSettings(
   pin: string,
-  payload: { importantKeywords: string[]; disabledSpecialDayIds: string[] }
+  payload: {
+    importantKeywords: string[];
+    disabledSpecialDayIds: string[];
+    specialDayEvents: SpecialDayConfig[];
+  }
 ): Promise<FrameSettings> {
   const response = await request(
     "/api/admin/settings",
@@ -112,7 +119,10 @@ export async function saveAdminSettings(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         calendar: { importantKeywords: payload.importantKeywords },
-        specialDays: { disabledIds: payload.disabledSpecialDayIds }
+        specialDays: {
+          disabledIds: payload.disabledSpecialDayIds,
+          events: payload.specialDayEvents
+        }
       })
     },
     pin

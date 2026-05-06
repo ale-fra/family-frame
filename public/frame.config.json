@@ -80,7 +80,7 @@
         "label": "Festa della mamma",
         "enabled": true,
         "theme": "family",
-        "schedule": { "type": "fixedDate", "month": 5, "day": 6 },
+        "schedule": { "type": "fixedDate", "month": 5, "day": 7 },
         "effects": ["festone", "flowers", "hearts"]
       },
       {

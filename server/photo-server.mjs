@@ -352,11 +352,18 @@ function normalizeSettings(payload) {
   }
 
   const disabledSpecialDayIds = payload.specialDays?.disabledIds;
-  if (disabledSpecialDayIds !== undefined) {
-    if (!Array.isArray(disabledSpecialDayIds)) return null;
+  const specialDayEvents = payload.specialDays?.events;
+  if (disabledSpecialDayIds !== undefined || specialDayEvents !== undefined) {
+    if (disabledSpecialDayIds !== undefined && !Array.isArray(disabledSpecialDayIds)) return null;
+    if (specialDayEvents !== undefined && !Array.isArray(specialDayEvents)) return null;
+    const normalizedEvents = specialDayEvents === undefined
+      ? undefined
+      : normalizeSpecialDayEvents(specialDayEvents);
+    if (specialDayEvents !== undefined && !normalizedEvents) return null;
     settings.specialDays = {
-      disabledIds: normalizeStringList(disabledSpecialDayIds)
+      disabledIds: normalizeStringList(disabledSpecialDayIds || [])
     };
+    if (normalizedEvents) settings.specialDays.events = normalizedEvents;
   }
 
   return settings;
@@ -382,6 +389,84 @@ function normalizeStringList(values) {
     .filter((value) => typeof value === "string")
     .map((value) => value.trim())
     .filter(Boolean))];
+}
+
+function normalizeSpecialDayEvents(events) {
+  const normalized = [];
+  const seenIds = new Set();
+
+  for (const event of events) {
+    if (!event || typeof event !== "object" || Array.isArray(event)) return null;
+    const id = typeof event.id === "string" ? event.id.trim() : "";
+    const label = typeof event.label === "string" ? event.label.trim() : "";
+    const theme = typeof event.theme === "string" ? event.theme.trim() : "";
+    const effects = Array.isArray(event.effects) ? normalizeStringList(event.effects) : [];
+    const schedule = normalizeSpecialDaySchedule(event.schedule);
+    if (!id || !label || !theme || effects.length === 0 || !schedule || seenIds.has(id)) return null;
+    seenIds.add(id);
+    normalized.push({
+      id,
+      label,
+      enabled: event.enabled !== false,
+      theme,
+      schedule,
+      effects
+    });
+  }
+
+  return normalized;
+}
+
+function normalizeSpecialDaySchedule(schedule) {
+  if (!schedule || typeof schedule !== "object" || Array.isArray(schedule)) return null;
+
+  if (schedule.type === "fixedDate") {
+    const month = normalizeInteger(schedule.month, 1, 12);
+    const day = normalizeInteger(schedule.day, 1, daysInMonth(month || 1));
+    if (!month || !day) return null;
+    return { type: "fixedDate", month, day };
+  }
+
+  if (schedule.type === "dateRange") {
+    const start = normalizeMonthDay(schedule.start);
+    const end = normalizeMonthDay(schedule.end);
+    if (!start || !end) return null;
+    return { type: "dateRange", start, end };
+  }
+
+  if (schedule.type === "nthWeekday") {
+    const month = normalizeInteger(schedule.month, 1, 12);
+    const weekday = normalizeInteger(schedule.weekday, 0, 6);
+    const nth = normalizeInteger(schedule.nth, 1, 5);
+    if (!month || weekday === null || !nth) return null;
+    return { type: "nthWeekday", month, weekday, nth };
+  }
+
+  if (schedule.type === "easterOffset") {
+    const offsetDays = normalizeInteger(schedule.offsetDays, -30, 30);
+    const durationDays = normalizeInteger(schedule.durationDays ?? 1, 1, 7);
+    if (offsetDays === null || !durationDays) return null;
+    return { type: "easterOffset", offsetDays, durationDays };
+  }
+
+  return null;
+}
+
+function normalizeMonthDay(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const month = normalizeInteger(value.month, 1, 12);
+  const day = normalizeInteger(value.day, 1, daysInMonth(month || 1));
+  if (!month || !day) return null;
+  return { month, day };
+}
+
+function normalizeInteger(value, min, max) {
+  if (!Number.isInteger(value) || value < min || value > max) return null;
+  return value;
+}
+
+function daysInMonth(month) {
+  return new Date(2024, month, 0).getDate();
 }
 
 async function fetchCalendarIcs() {
