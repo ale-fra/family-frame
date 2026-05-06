@@ -8,3 +8,4 @@ Type=oneshot
 WorkingDirectory=/home/alessandro/Code/frame
 ExecStart=/usr/bin/env bash scripts/update-and-build.sh
 ExecStartPost=/usr/bin/env systemctl --user try-restart family-frame-server.service family-frame-kiosk.service
+Environment=PATH=/home/alessandro/.config/nvm/versions/node/v24.15.0/bin:/snap/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
