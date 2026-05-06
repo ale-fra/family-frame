@@ -7,6 +7,8 @@ import { DatabaseSync } from "node:sqlite";
 import express from "express";
 import multer from "multer";
 
+await loadDotEnv();
+
 const rootDir = process.cwd();
 const dataDir = process.env.FRAME_DATA_DIR ? path.resolve(process.env.FRAME_DATA_DIR) : path.join(rootDir, "data");
 const photoDir = path.join(dataDir, "photos");
@@ -26,10 +28,6 @@ const calendarIcsUrl = process.env.FRAME_CALENDAR_ICS_URL || "";
 const calendarSourcesFile = process.env.FRAME_CALENDAR_SOURCES_FILE
   ? path.resolve(process.env.FRAME_CALENDAR_SOURCES_FILE)
   : "";
-const configuredCalendarSources = await loadCalendarSources();
-const calendarIcsUrls = configuredCalendarSources.length > 0
-  ? configuredCalendarSources.map((source) => source.icsUrl)
-  : splitEnvList(process.env.FRAME_CALENDAR_ICS_URLS || calendarIcsUrl);
 const calendarCacheMs = Number(process.env.FRAME_CALENDAR_CACHE_SECONDS || 900) * 1000;
 const allowedTelegramChats = new Set(
   (process.env.FRAME_TELEGRAM_ALLOWED_CHAT_IDS || "")
@@ -76,6 +74,7 @@ app.use(express.static(distDir, {
 }));
 
 await ensureStorage();
+await ensureCalendarSourcesSettings();
 
 app.get("/api/health", (_request, response) => {
   response.json({ ok: true });
@@ -91,14 +90,15 @@ app.get("/api/calendar.ics", async (_request, response) => {
   }
 });
 
-app.get("/api/calendar-sources.json", (_request, response) => {
-  if (configuredCalendarSources.length === 0) {
-    response.status(404).json({ error: "Calendar sources file is not configured" });
+app.get("/api/calendar-sources.json", async (_request, response) => {
+  const sources = enabledCalendarSources(await readCalendarSourcesFromSettings());
+  if (sources.length === 0) {
+    response.status(404).json({ error: "Calendar sources are not configured" });
     return;
   }
 
   response.json({
-    sources: configuredCalendarSources.map((source, index) => ({
+    sources: sources.map((source, index) => ({
       label: source.label,
       icsUrl: `/api/calendars/${index + 1}.ics`,
       enabled: source.enabled
@@ -108,13 +108,14 @@ app.get("/api/calendar-sources.json", (_request, response) => {
 
 app.get("/api/calendars/:index.ics", async (request, response) => {
   const index = Number(request.params.index) - 1;
-  if (!Number.isInteger(index) || index < 0 || index >= calendarIcsUrls.length) {
+  const sources = enabledCalendarSources(await readCalendarSourcesFromSettings());
+  if (!Number.isInteger(index) || index < 0 || index >= sources.length) {
     response.status(404).json({ error: "Calendar source not configured" });
     return;
   }
 
   try {
-    const calendarText = await fetchCachedRemoteCalendar(calendarIcsUrls[index]);
+    const calendarText = await fetchCachedRemoteCalendar(sources[index].icsUrl);
     response.type("text/calendar").set("Cache-Control", "no-store").send(calendarText);
   } catch (error) {
     console.error("Calendar source fetch failed:", error.message);
@@ -297,6 +298,8 @@ async function readSettings() {
 
 async function writeSettings(settings) {
   const now = new Date().toISOString();
+  calendarCache = { text: "", fetchedAt: 0 };
+  sourceCalendarCache.clear();
   getSettingsDb()
     .prepare(`
       INSERT INTO settings (key, value, updated_at)
@@ -332,6 +335,16 @@ async function ensureSettingsDb() {
   }
 }
 
+async function ensureCalendarSourcesSettings() {
+  const currentSettings = await readSettings();
+  if (Array.isArray(currentSettings.calendar?.sources)) return;
+
+  const sources = await initialCalendarSources();
+  if (sources.length === 0) return;
+
+  await writeSettings(mergeSettings(currentSettings, { calendar: { sources } }));
+}
+
 function getSettingsDb() {
   if (!settingsDb) {
     settingsDb = new DatabaseSync(settingsDbPath);
@@ -343,12 +356,20 @@ function normalizeSettings(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
 
   const settings = {};
+  const calendarSources = payload.calendar?.sources;
   const importantKeywords = payload.calendar?.importantKeywords;
-  if (importantKeywords !== undefined) {
-    if (!Array.isArray(importantKeywords)) return null;
-    settings.calendar = {
-      importantKeywords: normalizeStringList(importantKeywords)
-    };
+  if (calendarSources !== undefined || importantKeywords !== undefined) {
+    settings.calendar = {};
+    if (calendarSources !== undefined) {
+      if (!Array.isArray(calendarSources)) return null;
+      const normalizedSources = normalizeCalendarSources(calendarSources);
+      if (!normalizedSources) return null;
+      settings.calendar.sources = normalizedSources;
+    }
+    if (importantKeywords !== undefined) {
+      if (!Array.isArray(importantKeywords)) return null;
+      settings.calendar.importantKeywords = normalizeStringList(importantKeywords);
+    }
   }
 
   const disabledSpecialDayIds = payload.specialDays?.disabledIds;
@@ -389,6 +410,36 @@ function normalizeStringList(values) {
     .filter((value) => typeof value === "string")
     .map((value) => value.trim())
     .filter(Boolean))];
+}
+
+function normalizeCalendarSources(sources) {
+  const normalized = [];
+  const seenIds = new Set();
+  const seenUrls = new Set();
+
+  for (const source of sources) {
+    if (!source || typeof source !== "object" || Array.isArray(source)) return null;
+    const icsUrl = typeof source.icsUrl === "string" ? source.icsUrl.trim() : "";
+    if (!icsUrl) continue;
+    const id = typeof source.id === "string" && source.id.trim()
+      ? source.id.trim()
+      : calendarSourceId(source.label, icsUrl);
+    const uniqueId = uniqueCalendarSourceId(id, seenIds);
+    const urlKey = icsUrl.toLocaleLowerCase();
+    if (seenUrls.has(urlKey)) continue;
+    seenIds.add(uniqueId);
+    seenUrls.add(urlKey);
+    normalized.push({
+      id: uniqueId,
+      label: typeof source.label === "string" && source.label.trim()
+        ? source.label.trim()
+        : `Calendario ${normalized.length + 1}`,
+      icsUrl,
+      enabled: source.enabled !== false
+    });
+  }
+
+  return normalized;
 }
 
 function normalizeSpecialDayEvents(events) {
@@ -470,8 +521,9 @@ function daysInMonth(month) {
 }
 
 async function fetchCalendarIcs() {
-  if (calendarIcsUrls.length === 0) {
-    throw new Error("FRAME_CALENDAR_SOURCES_FILE, FRAME_CALENDAR_ICS_URLS, or FRAME_CALENDAR_ICS_URL is not configured");
+  const sources = enabledCalendarSources(await readCalendarSourcesFromSettings());
+  if (sources.length === 0) {
+    throw new Error("Calendar sources are not configured");
   }
 
   const now = Date.now();
@@ -480,7 +532,7 @@ async function fetchCalendarIcs() {
   }
 
   try {
-    const calendars = await Promise.all(calendarIcsUrls.map(fetchCachedRemoteCalendar));
+    const calendars = await Promise.all(sources.map((source) => fetchCachedRemoteCalendar(source.icsUrl)));
     const calendarText = calendars.length === 1 ? calendars[0] : mergeCalendars(calendars);
 
     calendarCache = {
@@ -497,7 +549,29 @@ async function fetchCalendarIcs() {
   }
 }
 
-async function loadCalendarSources() {
+async function readCalendarSourcesFromSettings() {
+  const settings = await readSettings();
+  return Array.isArray(settings.calendar?.sources) ? settings.calendar.sources : [];
+}
+
+function enabledCalendarSources(sources) {
+  return sources.filter((source) => source.enabled !== false && typeof source.icsUrl === "string" && source.icsUrl.trim());
+}
+
+async function initialCalendarSources() {
+  const fileSources = await loadCalendarSourcesFile();
+  if (fileSources.length > 0) return fileSources;
+
+  return splitEnvList(process.env.FRAME_CALENDAR_ICS_URLS || calendarIcsUrl)
+    .map((icsUrl, index) => ({
+      id: calendarSourceId(`Calendario ${index + 1}`, icsUrl),
+      label: index === 0 ? "Famiglia" : `Calendario ${index + 1}`,
+      icsUrl,
+      enabled: true
+    }));
+}
+
+async function loadCalendarSourcesFile() {
   if (!calendarSourcesFile) return [];
 
   try {
@@ -509,8 +583,11 @@ async function loadCalendarSources() {
     }
 
     return entries
-      .filter((entry) => entry && entry.enabled !== false && typeof entry.icsUrl === "string" && entry.icsUrl.trim())
+      .filter((entry) => entry && typeof entry.icsUrl === "string" && entry.icsUrl.trim())
       .map((entry, index) => ({
+        id: typeof entry.id === "string" && entry.id.trim()
+          ? entry.id.trim()
+          : calendarSourceId(entry.label || `Calendario ${index + 1}`, entry.icsUrl),
         label: typeof entry.label === "string" && entry.label.trim() ? entry.label.trim() : `Calendario ${index + 1}`,
         icsUrl: entry.icsUrl.trim(),
         enabled: entry.enabled !== false
@@ -518,6 +595,45 @@ async function loadCalendarSources() {
   } catch (error) {
     console.error(`Calendar sources file could not be loaded from ${calendarSourcesFile}:`, error.message);
     return [];
+  }
+}
+
+function calendarSourceId(label, icsUrl) {
+  const base = String(label || "calendario")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "calendario";
+  return `${base}-${crypto.createHash("sha1").update(icsUrl).digest("hex").slice(0, 8)}`;
+}
+
+function uniqueCalendarSourceId(id, seenIds) {
+  let candidate = id;
+  let counter = 2;
+  while (seenIds.has(candidate)) {
+    candidate = `${id}-${counter}`;
+    counter += 1;
+  }
+  return candidate;
+}
+
+async function loadDotEnv() {
+  const envPath = path.join(process.cwd(), ".env");
+  try {
+    const text = await fs.readFile(envPath, "utf8");
+    for (const line of text.split(/\r?\n/)) {
+      const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (!match) continue;
+      const [, key, rawValue] = match;
+      if (process.env[key] !== undefined) continue;
+      process.env[key] = rawValue
+        .replace(/^(['"])(.*)\1$/, "$2")
+        .replace(/\\n/g, "\n");
+    }
+  } catch {
+    // .env is optional; systemd can inject the same values through EnvironmentFile.
   }
 }
 

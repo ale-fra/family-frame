@@ -110,6 +110,7 @@ export function mergeConfig(loadedConfig: Partial<FrameConfig>, settings: FrameS
     weather: { ...defaultConfig.weather, ...loadedConfig.weather },
     calendar: {
       ...mergedCalendar,
+      sources: Array.isArray(settings.calendar?.sources) ? settings.calendar.sources : mergedCalendar.sources,
       importantKeywords: Array.isArray(importantKeywords) ? importantKeywords : mergedCalendar.importantKeywords
     },
     slideshow: { ...defaultConfig.slideshow, ...loadedConfig.slideshow },

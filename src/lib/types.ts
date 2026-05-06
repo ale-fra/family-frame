@@ -33,6 +33,7 @@ export type FrameConfig = {
 
 export type FrameSettings = {
   calendar?: {
+    sources?: CalendarSource[];
     importantKeywords?: string[];
   };
   specialDays?: {
@@ -105,6 +106,7 @@ export type SpecialDayConfig = {
 };
 
 export type CalendarSource = {
+  id?: string;
   label: string;
   icsUrl: string;
   enabled?: boolean;

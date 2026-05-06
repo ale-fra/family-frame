@@ -1,6 +1,6 @@
 import * as React from "react";
 import "@/admin.css";
-import type { AdminPhoto, PhotoStatus, SpecialDayConfig, SpecialDaySchedule } from "@/lib/types";
+import type { AdminPhoto, CalendarSource, PhotoStatus, SpecialDayConfig, SpecialDaySchedule } from "@/lib/types";
 import { defaultConfig } from "@/lib/config";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -31,6 +31,9 @@ export default function AdminApp() {
   const [busy, setBusy] = React.useState(false);
 
   const [keywordsText, setKeywordsText] = React.useState(defaultConfig.calendar.importantKeywords.join("\n"));
+  const [calendarSources, setCalendarSources] = React.useState<CalendarSource[]>(
+    defaultConfig.calendar.sources || []
+  );
   const [specialDayEvents, setSpecialDayEvents] = React.useState<SpecialDayConfig[]>(
     defaultConfig.specialDays.events
   );
@@ -64,6 +67,7 @@ export default function AdminApp() {
     if (!pin) return;
     try {
       const bundle = await loadAdminSettings(pin);
+      setCalendarSources(bundle.calendarSources);
       setSpecialDayEvents(bundle.specialDayEvents);
       setKeywordsText(bundle.importantKeywords.join("\n"));
       setDisabledSpecialDayIds(bundle.disabledSpecialDayIds);
@@ -73,6 +77,7 @@ export default function AdminApp() {
         return;
       }
       // silent fallback to defaults
+      setCalendarSources(defaultConfig.calendar.sources || []);
       setKeywordsText(defaultConfig.calendar.importantKeywords.join("\n"));
       setSpecialDayEvents(defaultConfig.specialDays.events);
       setDisabledSpecialDayIds([]);
@@ -151,6 +156,7 @@ export default function AdminApp() {
 
   async function persistSettings(
     nextDisabledIds: string[],
+    nextCalendarSources: CalendarSource[],
     nextKeywords: string[],
     nextEvents: SpecialDayConfig[],
     successMessage: string
@@ -159,6 +165,7 @@ export default function AdminApp() {
     setBusy(true);
     try {
       const settings = await saveAdminSettings(pin, {
+        calendarSources: nextCalendarSources,
         importantKeywords: nextKeywords,
         disabledSpecialDayIds: nextDisabledIds,
         specialDayEvents: nextEvents.map((event) => ({
@@ -166,6 +173,7 @@ export default function AdminApp() {
           enabled: event.enabled !== false && !nextDisabledIds.includes(event.id)
         }))
       });
+      setCalendarSources(settings.calendar?.sources || nextCalendarSources);
       setKeywordsText((settings.calendar?.importantKeywords || nextKeywords).join("\n"));
       setDisabledSpecialDayIds(settings.specialDays?.disabledIds || nextDisabledIds);
       setSpecialDayEvents(settings.specialDays?.events || nextEvents);
@@ -183,7 +191,24 @@ export default function AdminApp() {
 
   async function saveKeywords() {
     const keywords = parseKeywordEditorValue(keywordsText);
-    await persistSettings(disabledSpecialDayIds, keywords, specialDayEvents, "Parole importanti salvate");
+    await persistSettings(disabledSpecialDayIds, calendarSources, keywords, specialDayEvents, "Parole importanti salvate");
+  }
+
+  async function saveCalendarSources(nextSources: CalendarSource[]) {
+    const keywords = parseKeywordEditorValue(keywordsText);
+    const normalizedSources = nextSources.map((source) => ({
+      ...source,
+      label: source.label.trim(),
+      icsUrl: source.icsUrl.trim()
+    }));
+    setCalendarSources(normalizedSources);
+    await persistSettings(
+      disabledSpecialDayIds,
+      normalizedSources,
+      keywords,
+      specialDayEvents,
+      "Calendari salvati"
+    );
   }
 
   async function toggleSpecialDay(eventId: string, enabled: boolean) {
@@ -198,6 +223,7 @@ export default function AdminApp() {
     setSpecialDayEvents(nextEvents);
     await persistSettings(
       nextDisabled,
+      calendarSources,
       keywords,
       nextEvents,
       enabled ? "Giornata evento attivata" : "Giornata evento disattivata"
@@ -210,7 +236,7 @@ export default function AdminApp() {
       event.id === eventId ? { ...event, schedule } : event
     ));
     setSpecialDayEvents(nextEvents);
-    await persistSettings(disabledSpecialDayIds, keywords, nextEvents, "Data giornata salvata");
+    await persistSettings(disabledSpecialDayIds, calendarSources, keywords, nextEvents, "Data giornata salvata");
   }
 
   if (needsPin) {
@@ -254,6 +280,8 @@ export default function AdminApp() {
               keywordsText={keywordsText}
               onKeywordsChange={setKeywordsText}
               onSaveKeywords={saveKeywords}
+              calendarSources={calendarSources}
+              onSaveCalendarSources={saveCalendarSources}
               busy={busy}
               events={specialDayEvents}
               disabledIds={disabledSpecialDayIds}

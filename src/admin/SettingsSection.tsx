@@ -1,14 +1,16 @@
 import * as React from "react";
-import type { SpecialDayConfig, SpecialDaySchedule } from "@/lib/types";
+import type { CalendarSource, SpecialDayConfig, SpecialDaySchedule } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { specialDayScheduleLabel } from "./labels";
-import { CalendarDays, Save, Sparkles, X } from "lucide-react";
+import { CalendarDays, Plus, Save, Sparkles, Trash2, X } from "lucide-react";
 
 type Props = {
+  calendarSources: CalendarSource[];
+  onSaveCalendarSources: (sources: CalendarSource[]) => void;
   keywordsText: string;
   onKeywordsChange: (value: string) => void;
   onSaveKeywords: () => void;
@@ -20,6 +22,8 @@ type Props = {
 };
 
 export function SettingsSection({
+  calendarSources,
+  onSaveCalendarSources,
   keywordsText,
   onKeywordsChange,
   onSaveKeywords,
@@ -31,6 +35,12 @@ export function SettingsSection({
 }: Props) {
   return (
     <div className="space-y-6">
+      <CalendarSourcesEditor
+        sources={calendarSources}
+        busy={busy}
+        onSave={onSaveCalendarSources}
+      />
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
@@ -109,6 +119,125 @@ export function SettingsSection({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function CalendarSourcesEditor({
+  sources,
+  busy,
+  onSave
+}: {
+  sources: CalendarSource[];
+  busy: boolean;
+  onSave: (sources: CalendarSource[]) => void;
+}) {
+  const [draftSources, setDraftSources] = React.useState<CalendarSource[]>(sources);
+
+  React.useEffect(() => {
+    setDraftSources(sources);
+  }, [sources]);
+
+  function updateSource(index: number, patch: Partial<CalendarSource>) {
+    setDraftSources((current) => current.map((source, sourceIndex) => (
+      sourceIndex === index ? { ...source, ...patch } : source
+    )));
+  }
+
+  function addSource() {
+    setDraftSources((current) => [
+      ...current,
+      {
+        id: `admin-${crypto.randomUUID()}`,
+        label: `Calendario ${current.length + 1}`,
+        icsUrl: "",
+        enabled: true
+      }
+    ]);
+  }
+
+  function removeSource(index: number) {
+    setDraftSources((current) => current.filter((_, sourceIndex) => sourceIndex !== index));
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle>Calendari</CardTitle>
+            <CardDescription>
+              Sorgenti ICS lette dalla cornice. I calendari disattivati restano salvati ma non vengono mostrati.
+            </CardDescription>
+          </div>
+          <div className="hidden h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary sm:flex">
+            <CalendarDays className="h-5 w-5" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {draftSources.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+            Nessun calendario configurato.
+          </div>
+        ) : (
+          draftSources.map((source, index) => (
+            <div key={source.id || index} className="grid gap-3 rounded-md border border-border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <Switch
+                    checked={source.enabled !== false}
+                    disabled={busy}
+                    onCheckedChange={(checked) => updateSource(index, { enabled: checked })}
+                    aria-label={`Attiva ${source.label || "calendario"}`}
+                  />
+                  <Input
+                    value={source.label}
+                    disabled={busy}
+                    placeholder="Nome calendario"
+                    onChange={(event) => updateSource(index, { label: event.target.value })}
+                    className="min-w-0"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  onClick={() => removeSource(index)}
+                  aria-label="Rimuovi calendario"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <div>
+                <Label htmlFor={`calendar-url-${index}`} className="sr-only">
+                  URL ICS
+                </Label>
+                <Input
+                  id={`calendar-url-${index}`}
+                  value={source.icsUrl}
+                  disabled={busy}
+                  inputMode="url"
+                  spellCheck={false}
+                  placeholder="https://.../basic.ics"
+                  onChange={(event) => updateSource(index, { icsUrl: event.target.value })}
+                />
+              </div>
+            </div>
+          ))
+        )}
+      </CardContent>
+      <CardFooter className="flex-col gap-3 sm:flex-row sm:justify-between">
+        <Button type="button" variant="outline" onClick={addSource} disabled={busy}>
+          <Plus className="h-4 w-4" />
+          Aggiungi calendario
+        </Button>
+        <Button type="button" onClick={() => onSave(draftSources)} disabled={busy}>
+          <Save className="h-4 w-4" />
+          Salva calendari
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }
 

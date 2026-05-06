@@ -1,4 +1,4 @@
-import type { AdminPhoto, FrameConfig, FrameSettings, SpecialDayConfig } from "@/lib/types";
+import type { AdminPhoto, CalendarSource, FrameConfig, FrameSettings, SpecialDayConfig } from "@/lib/types";
 import { defaultConfig, mergeConfig } from "@/lib/config";
 
 export class UnauthorizedError extends Error {
@@ -72,6 +72,7 @@ export async function updatePhotoStatus(
 
 export type AdminSettingsBundle = {
   baseConfig: FrameConfig;
+  calendarSources: CalendarSource[];
   importantKeywords: string[];
   specialDayEvents: SpecialDayConfig[];
   disabledSpecialDayIds: string[];
@@ -88,6 +89,7 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
     const settings = (await response.json()) as FrameSettings;
     return {
       baseConfig,
+      calendarSources: settings.calendar?.sources || baseConfig.calendar.sources || [],
       importantKeywords:
         settings.calendar?.importantKeywords || baseConfig.calendar.importantKeywords,
       specialDayEvents: settings.specialDays?.events || baseConfig.specialDays.events,
@@ -97,6 +99,7 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
     if (error instanceof UnauthorizedError) throw error;
     return {
       baseConfig,
+      calendarSources: baseConfig.calendar.sources || [],
       importantKeywords: baseConfig.calendar.importantKeywords,
       specialDayEvents: baseConfig.specialDays.events,
       disabledSpecialDayIds: []
@@ -107,6 +110,7 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
 export async function saveAdminSettings(
   pin: string,
   payload: {
+    calendarSources: CalendarSource[];
     importantKeywords: string[];
     disabledSpecialDayIds: string[];
     specialDayEvents: SpecialDayConfig[];
@@ -118,7 +122,10 @@ export async function saveAdminSettings(
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        calendar: { importantKeywords: payload.importantKeywords },
+        calendar: {
+          sources: payload.calendarSources,
+          importantKeywords: payload.importantKeywords
+        },
         specialDays: {
           disabledIds: payload.disabledSpecialDayIds,
           events: payload.specialDayEvents
