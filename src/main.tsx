@@ -720,11 +720,11 @@ function FloatingShapes({ kind }: { kind: "heart" | "flower" | "star" }) {
 
 type FlowerKind = "peony" | "peony-pale" | "daisy" | "bud" | "leaf" | "leaf-dark" | "heart";
 
-function FlowerSVG({ kind }: { kind: FlowerKind }) {
+function FlowerSVG({ kind, size }: { kind: FlowerKind; size: number }) {
   switch (kind) {
     case "peony":
       return (
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
           <g fill="#d99baa">
             <circle cx="12" cy="8" r="5" />
             <circle cx="7" cy="13" r="5" />
@@ -741,7 +741,7 @@ function FlowerSVG({ kind }: { kind: FlowerKind }) {
       );
     case "peony-pale":
       return (
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
           <g fill="#eac8d2">
             <circle cx="12" cy="8" r="5" />
             <circle cx="7" cy="13" r="5" />
@@ -756,7 +756,7 @@ function FlowerSVG({ kind }: { kind: FlowerKind }) {
       );
     case "daisy":
       return (
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
           <g fill="#fffaf0" stroke="#e8d5b6" strokeWidth="0.4">
             <ellipse cx="12" cy="4.5" rx="2.4" ry="3.6" />
             <ellipse cx="12" cy="19.5" rx="2.4" ry="3.6" />
@@ -772,28 +772,28 @@ function FlowerSVG({ kind }: { kind: FlowerKind }) {
       );
     case "bud":
       return (
-        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
           <circle cx="12" cy="12" r="6" fill="#e8c54a" />
           <circle cx="12" cy="12" r="3" fill="#a87a18" />
         </svg>
       );
     case "leaf":
       return (
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
           <path d="M4 16 C4 8, 16 4, 20 4 C20 12, 14 18, 4 16 Z" fill="#7ca673" />
           <path d="M5 15 L18 6" stroke="#5e8459" strokeWidth="1" fill="none" />
         </svg>
       );
     case "leaf-dark":
       return (
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
           <path d="M4 16 C4 8, 16 4, 20 4 C20 12, 14 18, 4 16 Z" fill="#5e8459" />
           <path d="M5 15 L18 6" stroke="#476641" strokeWidth="1" fill="none" />
         </svg>
       );
     case "heart":
       return (
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
           <path
             d="M12 21 C12 21 5 16.4 5 10 A4 4 0 0 1 12 8 A4 4 0 0 1 19 10 C19 16.4 12 21 12 21 Z"
             fill="#d57a89"
@@ -805,11 +805,72 @@ function FlowerSVG({ kind }: { kind: FlowerKind }) {
   }
 }
 
+const CORNER_FLOWERS: { kind: FlowerKind; x: number; y: number; size: number; delay: number }[][] = [
+  // top-left
+  [
+    { kind: "peony",      x: 32, y: 32, size: 30, delay: 0 },
+    { kind: "leaf",       x: 14, y: 52, size: 22, delay: 0.4 },
+    { kind: "peony-pale", x: 54, y: 18, size: 24, delay: 0.8 },
+    { kind: "daisy",      x: 68, y: 44, size: 20, delay: 1.2 },
+    { kind: "bud",        x: 22, y: 74, size: 18, delay: 1.6 },
+    { kind: "leaf-dark",  x: 50, y: 64, size: 16, delay: 2.0 },
+    { kind: "heart",      x: 76, y: 20, size: 14, delay: 2.4 },
+  ],
+  // top-right (mirror H: x → 96-x)
+  [
+    { kind: "peony",      x: 64, y: 32, size: 30, delay: 0.2 },
+    { kind: "leaf",       x: 82, y: 52, size: 22, delay: 0.6 },
+    { kind: "peony-pale", x: 42, y: 18, size: 24, delay: 1.0 },
+    { kind: "daisy",      x: 28, y: 44, size: 20, delay: 1.4 },
+    { kind: "bud",        x: 74, y: 74, size: 18, delay: 1.8 },
+    { kind: "leaf-dark",  x: 46, y: 64, size: 16, delay: 2.2 },
+    { kind: "heart",      x: 20, y: 20, size: 14, delay: 2.6 },
+  ],
+  // bottom-left (mirror V: y → 96-y)
+  [
+    { kind: "peony",      x: 32, y: 64, size: 30, delay: 0.3 },
+    { kind: "leaf",       x: 14, y: 44, size: 22, delay: 0.7 },
+    { kind: "peony-pale", x: 54, y: 78, size: 24, delay: 1.1 },
+    { kind: "daisy",      x: 68, y: 52, size: 20, delay: 1.5 },
+    { kind: "bud",        x: 22, y: 22, size: 18, delay: 1.9 },
+    { kind: "leaf-dark",  x: 50, y: 32, size: 16, delay: 2.3 },
+    { kind: "heart",      x: 76, y: 76, size: 14, delay: 2.7 },
+  ],
+  // bottom-right (mirror H+V)
+  [
+    { kind: "peony",      x: 64, y: 64, size: 30, delay: 0.5 },
+    { kind: "leaf",       x: 82, y: 44, size: 22, delay: 0.9 },
+    { kind: "peony-pale", x: 42, y: 78, size: 24, delay: 1.3 },
+    { kind: "daisy",      x: 28, y: 52, size: 20, delay: 1.7 },
+    { kind: "bud",        x: 74, y: 22, size: 18, delay: 2.1 },
+    { kind: "leaf-dark",  x: 46, y: 32, size: 16, delay: 2.5 },
+    { kind: "heart",      x: 20, y: 76, size: 14, delay: 2.9 },
+  ],
+];
+
+const CORNER_CLASSES = ["flower-corner-tl", "flower-corner-tr", "flower-corner-bl", "flower-corner-br"];
+
+function FlowerCorner({ flowers, cornerClass }: { flowers: typeof CORNER_FLOWERS[0]; cornerClass: string }) {
+  return (
+    <div className={`flower-corner ${cornerClass}`}>
+      {flowers.map((f, i) => (
+        <div
+          key={i}
+          className={`flower-el${f.kind === "heart" ? " flower-heart" : ""}`}
+          style={{ left: f.x, top: f.y, animationDelay: `${f.delay}s` }}
+        >
+          <FlowerSVG kind={f.kind} size={f.size} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PhotoFrameFlowers() {
   return (
     <div className="photo-frame-flowers">
-      {Array.from({ length: 22 }, (_value, index) => (
-        <span key={index} style={{ "--flower-index": index } as React.CSSProperties}>✿</span>
+      {CORNER_FLOWERS.map((flowers, i) => (
+        <FlowerCorner key={i} flowers={flowers} cornerClass={CORNER_CLASSES[i]} />
       ))}
     </div>
   );
