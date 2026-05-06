@@ -544,23 +544,55 @@ function parseEvents(calendarText: string, lookaheadDays: number, keywords: stri
   until.setDate(until.getDate() + lookaheadDays);
   until.setHours(23, 59, 59, 999);
   const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
+  const events: CalendarEvent[] = [];
 
-  return component
-    .getAllSubcomponents("vevent")
-    .map((vevent, index) => {
-      const event = new ICAL.Event(vevent);
-      const startsAt = event.startDate.toJSDate();
-      const endsAt = event.endDate?.toJSDate();
-      const title = event.summary || "Untitled event";
-      return {
-        id: event.uid || `${title}-${index}`,
-        title,
-        startsAt,
-        endsAt,
-        allDay: event.startDate.isDate,
-        important: normalizedKeywords.some((keyword) => title.toLowerCase().includes(keyword))
-      };
-    })
+  component.getAllSubcomponents("vevent").forEach((vevent, index) => {
+    const event = new ICAL.Event(vevent);
+    const title = event.summary || "Untitled event";
+    const baseId = event.uid || `${title}-${index}`;
+    const important = normalizedKeywords.some((keyword) => title.toLowerCase().includes(keyword));
+
+    if (event.isRecurrenceException()) return;
+
+    if (event.isRecurring()) {
+      const iterator = event.iterator();
+      let occurrence: ICAL.Time | null;
+      let guard = 0;
+
+      while ((occurrence = iterator.next()) && guard < 1000) {
+        guard += 1;
+        const details = event.getOccurrenceDetails(occurrence);
+        const startsAt = details.startDate.toJSDate();
+        const endsAt = details.endDate?.toJSDate();
+        const effectiveEnd = endsAt ?? startsAt;
+
+        if (effectiveEnd < now) continue;
+        if (startsAt > until) break;
+
+        events.push({
+          id: `${baseId}-${startsAt.toISOString()}`,
+          title,
+          startsAt,
+          endsAt,
+          allDay: details.startDate.isDate,
+          important
+        });
+      }
+
+      return;
+    }
+
+    events.push({
+      id: baseId,
+      title,
+      startsAt: event.startDate.toJSDate(),
+      endsAt: event.endDate?.toJSDate(),
+      allDay: event.startDate.isDate,
+      important
+    });
+  });
+
+  return events
     .filter((event) => {
       const effectiveEnd = event.endsAt ?? event.startsAt;
       return effectiveEnd >= now && event.startsAt <= until;
