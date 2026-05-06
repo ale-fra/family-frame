@@ -18,6 +18,7 @@ export const defaultConfig: FrameConfig = {
     sources: [],
     lookaheadDays: 12,
     maxEvents: 6,
+    refreshMinutes: 15,
     importantKeywords: [
       "compleanno", "anniversario", "colloquio", "riunione scuola", "ricevimento",
       "recita", "saggio", "gita", "scadenza", "pagamento", "bolletta", "visita",

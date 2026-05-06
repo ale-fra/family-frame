@@ -250,8 +250,15 @@ function FrameApp() {
       if (!cancelled) setEvents([]);
     });
 
+    const interval = window.setInterval(() => {
+      loadCalendarEvents().catch(() => {
+        if (!cancelled) setEvents([]);
+      });
+    }, Math.max(5, config.calendar.refreshMinutes) * 60_000);
+
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
     };
   }, [config.calendar]);
 

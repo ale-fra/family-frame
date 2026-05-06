@@ -16,6 +16,7 @@ export type FrameConfig = {
     sources?: CalendarSource[];
     lookaheadDays: number;
     maxEvents: number;
+    refreshMinutes: number;
     importantKeywords: string[];
   };
   slideshow: {
