@@ -9,6 +9,7 @@
     "update": "bash scripts/update-and-build.sh",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
+    "awake": "bash scripts/disable-sleep.sh",
     "kiosk": "bash scripts/start-kiosk.sh",
     "display": "bash scripts/setup-display.sh"
   },

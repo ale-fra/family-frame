@@ -14,6 +14,10 @@ if ! command -v "$CHROMIUM_BIN" >/dev/null 2>&1; then
   exit 1
 fi
 
+if [[ -f scripts/disable-sleep.sh ]]; then
+  bash scripts/disable-sleep.sh || true
+fi
+
 CHROMIUM_PATH="$(command -v "$CHROMIUM_BIN")"
 if [[ "$CHROMIUM_PATH" == /snap/bin/* ]]; then
   DEFAULT_CHROMIUM_PROFILE="$HOME/snap/chromium/common/family-frame-profile"

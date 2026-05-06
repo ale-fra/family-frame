@@ -11,5 +11,6 @@ for _ in {1..60}; do
   sleep 1
 done
 
+bash scripts/disable-sleep.sh || true
 npm run display || true
 exec npm run kiosk
