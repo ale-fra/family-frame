@@ -26,12 +26,87 @@ type FrameConfig = {
   slideshow: {
     intervalSeconds: number;
   };
+  specialDays: {
+    enabled: boolean;
+    ambientEveryMinutes: {
+      min: number;
+      max: number;
+    };
+    events: SpecialDayConfig[];
+  };
 };
 
 type FrameSettings = {
   calendar?: {
     importantKeywords?: string[];
   };
+  specialDays?: {
+    disabledIds?: string[];
+  };
+};
+
+type SpecialDayEffect =
+  | "santaPeek"
+  | "warmLights"
+  | "confettiBurst"
+  | "hearts"
+  | "flowers"
+  | "springDecor"
+  | "pumpkinGlow"
+  | "stars";
+
+type SpecialDayTheme =
+  | "christmas"
+  | "new-year"
+  | "epiphany"
+  | "valentine"
+  | "family"
+  | "spring"
+  | "grandparents"
+  | "halloween"
+  | "birthday"
+  | "anniversary";
+
+type FixedDateSchedule = {
+  type: "fixedDate";
+  month: number;
+  day: number;
+};
+
+type DateRangeSchedule = {
+  type: "dateRange";
+  start: {
+    month: number;
+    day: number;
+  };
+  end: {
+    month: number;
+    day: number;
+  };
+};
+
+type NthWeekdaySchedule = {
+  type: "nthWeekday";
+  month: number;
+  weekday: number;
+  nth: number;
+};
+
+type EasterOffsetSchedule = {
+  type: "easterOffset";
+  offsetDays: number;
+  durationDays?: number;
+};
+
+type SpecialDaySchedule = FixedDateSchedule | DateRangeSchedule | NthWeekdaySchedule | EasterOffsetSchedule;
+
+type SpecialDayConfig = {
+  id: string;
+  label: string;
+  enabled?: boolean;
+  theme: SpecialDayTheme;
+  schedule: SpecialDaySchedule;
+  effects: SpecialDayEffect[];
 };
 
 type CalendarSource = {
@@ -52,6 +127,7 @@ type Photo = {
 };
 
 type PhotoStatus = "pending" | "approved" | "hidden" | "trashed";
+type AdminSection = "photos" | "settings";
 
 type AdminPhoto = Photo & {
   id: string;
@@ -158,6 +234,87 @@ const defaultConfig: FrameConfig = {
   },
   slideshow: {
     intervalSeconds: 18
+  },
+  specialDays: {
+    enabled: true,
+    ambientEveryMinutes: {
+      min: 3,
+      max: 8
+    },
+    events: [
+      {
+        id: "natale",
+        label: "Natale",
+        enabled: true,
+        theme: "christmas",
+        schedule: { type: "dateRange", start: { month: 12, day: 24 }, end: { month: 12, day: 26 } },
+        effects: ["warmLights", "santaPeek", "stars"]
+      },
+      {
+        id: "capodanno",
+        label: "Capodanno",
+        enabled: true,
+        theme: "new-year",
+        schedule: { type: "dateRange", start: { month: 12, day: 31 }, end: { month: 1, day: 1 } },
+        effects: ["confettiBurst", "stars"]
+      },
+      {
+        id: "befana",
+        label: "Befana",
+        enabled: true,
+        theme: "epiphany",
+        schedule: { type: "fixedDate", month: 1, day: 6 },
+        effects: ["stars"]
+      },
+      {
+        id: "san-valentino",
+        label: "San Valentino",
+        enabled: true,
+        theme: "valentine",
+        schedule: { type: "fixedDate", month: 2, day: 14 },
+        effects: ["hearts"]
+      },
+      {
+        id: "festa-papa",
+        label: "Festa del papà",
+        enabled: true,
+        theme: "family",
+        schedule: { type: "fixedDate", month: 3, day: 19 },
+        effects: ["stars"]
+      },
+      {
+        id: "pasqua",
+        label: "Pasqua",
+        enabled: true,
+        theme: "spring",
+        schedule: { type: "easterOffset", offsetDays: 0, durationDays: 2 },
+        effects: ["springDecor", "flowers"]
+      },
+      {
+        id: "festa-mamma",
+        label: "Festa della mamma",
+        enabled: true,
+        theme: "family",
+        schedule: { type: "nthWeekday", month: 5, weekday: 0, nth: 2 },
+        effects: ["flowers", "hearts"]
+      },
+      {
+        id: "festa-nonni",
+        label: "Festa dei nonni",
+        enabled: true,
+        theme: "grandparents",
+        schedule: { type: "fixedDate", month: 10, day: 2 },
+        effects: ["flowers", "stars"]
+      },
+      {
+        id: "halloween",
+        label: "Halloween",
+        enabled: true,
+        theme: "halloween",
+        schedule: { type: "fixedDate", month: 10, day: 31 },
+        effects: ["pumpkinGlow", "stars"]
+      }
+    ]
   }
 };
 
@@ -167,6 +324,13 @@ const adminTabs: Array<{ status: PhotoStatus; label: string }> = [
   { status: "hidden", label: "Nascoste" },
   { status: "trashed", label: "Cestino" }
 ];
+
+const photoStatusLabels: Record<PhotoStatus, string> = {
+  pending: "Da approvare",
+  approved: "Visibile",
+  hidden: "Nascosta",
+  trashed: "Nel cestino"
+};
 
 function Root() {
   if (window.location.pathname.startsWith("/admin")) {
@@ -180,9 +344,13 @@ function FrameApp() {
   const [config, setConfig] = React.useState<FrameConfig>(defaultConfig);
   const [photos, setPhotos] = React.useState<Photo[]>([]);
   const [photoIndex, setPhotoIndex] = React.useState(0);
+  const [photoAspect, setPhotoAspect] = React.useState(1);
+  const [photoStageSize, setPhotoStageSize] = React.useState({ width: 0, height: 0 });
   const [weather, setWeather] = React.useState<WeatherState>({ forecast: [] });
   const [events, setEvents] = React.useState<CalendarEvent[]>([]);
   const [clock, setClock] = React.useState(new Date());
+  const [specialDayPulse, setSpecialDayPulse] = React.useState(0);
+  const photoStageRef = React.useRef<HTMLElement | null>(null);
   const shuffleQueueRef = React.useRef<number[]>([]);
 
   React.useEffect(() => {
@@ -246,6 +414,18 @@ function FrameApp() {
   }, [photos]);
 
   React.useEffect(() => {
+    const element = photoStageRef.current;
+    if (!element) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setPhotoStageSize({ width, height });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  React.useEffect(() => {
     if (photos.length < 2) return;
     const interval = window.setInterval(() => {
       setPhotoIndex((current) => nextPhotoIndex(current, photos.length, shuffleQueueRef));
@@ -257,6 +437,26 @@ function FrameApp() {
     const updateClock = window.setInterval(() => setClock(new Date()), 30_000);
     return () => window.clearInterval(updateClock);
   }, []);
+
+  React.useEffect(() => {
+    const cadence = config.specialDays.ambientEveryMinutes;
+    const minMinutes = Math.max(1, Math.min(cadence.min, cadence.max));
+    const maxMinutes = Math.max(minMinutes, cadence.max);
+    let timeout: number | undefined;
+
+    function scheduleNextPulse() {
+      const delayMinutes = minMinutes + Math.random() * (maxMinutes - minMinutes);
+      timeout = window.setTimeout(() => {
+        setSpecialDayPulse((current) => current + 1);
+        scheduleNextPulse();
+      }, delayMinutes * 60_000);
+    }
+
+    scheduleNextPulse();
+    return () => {
+      if (timeout !== undefined) window.clearTimeout(timeout);
+    };
+  }, [config.specialDays.ambientEveryMinutes.min, config.specialDays.ambientEveryMinutes.max]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -340,13 +540,37 @@ function FrameApp() {
   }, [config.calendar]);
 
   const activePhoto = photos[photoIndex];
+  const activeSpecialDay = activeSpecialDayForDate(config.specialDays, clock);
+  const activeSpecialDayEffects = new Set(activeSpecialDay?.effects || []);
+  const photoBox = containedBox(photoStageSize.width - 28, photoStageSize.height - 28, photoAspect);
 
   return (
     <main className="frame-shell">
-      <section className="photo-stage">
+      <SpecialDayLayer specialDay={activeSpecialDay} pulse={specialDayPulse} />
+      <section className="photo-stage" ref={photoStageRef}>
         {activePhoto ? (
           <>
-            <img src={activePhoto.src} alt={activePhoto.caption || "Foto di famiglia"} />
+            <div
+              className="photo-stage-backdrop"
+              style={{ backgroundImage: `url(${activePhoto.src})` }}
+            />
+            <div className="photo-stage-vignette" />
+            <div
+              className="photo-wrap"
+              style={photoBox ? { width: photoBox.width, height: photoBox.height } : undefined}
+            >
+              <img
+                src={activePhoto.src}
+                alt={activePhoto.caption || "Foto di famiglia"}
+                onLoad={(event) => {
+                  const image = event.currentTarget;
+                  if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                    setPhotoAspect(image.naturalWidth / image.naturalHeight);
+                  }
+                }}
+              />
+              {activeSpecialDayEffects.has("flowers") ? <PhotoFrameFlowers /> : null}
+            </div>
             {activePhoto.caption ? <div className="photo-caption">{activePhoto.caption}</div> : null}
           </>
         ) : (
@@ -415,14 +639,119 @@ function FrameApp() {
   );
 }
 
+function SpecialDayLayer({ specialDay, pulse }: { specialDay?: SpecialDayConfig; pulse: number }) {
+  if (!specialDay) return null;
+
+  const effects = new Set(specialDay.effects);
+  const burstKey = `${specialDay.id}-${pulse}`;
+
+  return (
+    <div className={`special-day-layer theme-${specialDay.theme}`} aria-hidden="true">
+      <div className="special-day-glow" />
+      <div className="special-day-ribbon">{specialDay.label}</div>
+      {effects.has("warmLights") ? <WarmLights /> : null}
+      {effects.has("santaPeek") ? <SantaPeek key={`santa-${burstKey}`} /> : null}
+      {effects.has("confettiBurst") ? <ConfettiBurst key={`confetti-${burstKey}`} /> : null}
+      {effects.has("hearts") ? <FloatingShapes key={`hearts-${burstKey}`} kind="heart" /> : null}
+      {effects.has("springDecor") ? <SpringDecor /> : null}
+      {effects.has("pumpkinGlow") ? <PumpkinGlow /> : null}
+      {effects.has("stars") ? <FloatingShapes key={`stars-${burstKey}`} kind="star" /> : null}
+    </div>
+  );
+}
+
+function WarmLights() {
+  return (
+    <div className="special-lights">
+      {Array.from({ length: 18 }, (_value, index) => (
+        <span key={index} />
+      ))}
+    </div>
+  );
+}
+
+function SantaPeek() {
+  return (
+    <div className="santa-peek">
+      <div className="santa-hat" />
+      <div className="santa-face">
+        <span className="santa-eye" />
+        <span className="santa-eye" />
+        <span className="santa-nose" />
+        <span className="santa-beard" />
+      </div>
+      <div className="santa-wave" />
+    </div>
+  );
+}
+
+function ConfettiBurst() {
+  return (
+    <div className="confetti-burst">
+      {Array.from({ length: 18 }, (_value, index) => (
+        <span key={index} style={{ "--confetti-index": index } as React.CSSProperties} />
+      ))}
+    </div>
+  );
+}
+
+function FloatingShapes({ kind }: { kind: "heart" | "flower" | "star" }) {
+  const labels = {
+    heart: "♥",
+    flower: "✿",
+    star: "★"
+  };
+
+  return (
+    <div className={`floating-shapes ${kind}-shapes`}>
+      {Array.from({ length: 10 }, (_value, index) => (
+        <span key={index} style={{ "--shape-index": index } as React.CSSProperties}>{labels[kind]}</span>
+      ))}
+    </div>
+  );
+}
+
+function PhotoFrameFlowers() {
+  return (
+    <div className="photo-frame-flowers">
+      {Array.from({ length: 22 }, (_value, index) => (
+        <span key={index} style={{ "--flower-index": index } as React.CSSProperties}>✿</span>
+      ))}
+    </div>
+  );
+}
+
+function SpringDecor() {
+  return (
+    <div className="spring-decor">
+      <span />
+      <span />
+      <span />
+    </div>
+  );
+}
+
+function PumpkinGlow() {
+  return (
+    <div className="pumpkin-glow">
+      <span className="pumpkin-stem" />
+      <span className="pumpkin-body" />
+    </div>
+  );
+}
+
 function AdminApp() {
   const [photos, setPhotos] = React.useState<AdminPhoto[]>([]);
   const [activeTab, setActiveTab] = React.useState<PhotoStatus>("pending");
+  const [activeSection, setActiveSection] = React.useState<AdminSection>("photos");
   const [pin, setPin] = React.useState(() => window.localStorage.getItem("frameAdminPin") || "");
   const [draftPin, setDraftPin] = React.useState(pin);
   const [importantKeywordsText, setImportantKeywordsText] = React.useState(defaultConfig.calendar.importantKeywords.join("\n"));
+  const [specialDayEvents, setSpecialDayEvents] = React.useState(defaultConfig.specialDays.events);
+  const [disabledSpecialDayIds, setDisabledSpecialDayIds] = React.useState<string[]>([]);
   const [needsPin, setNeedsPin] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const [isDraggingUpload, setIsDraggingUpload] = React.useState(false);
   const [message, setMessage] = React.useState("Caricamento libreria");
 
   const loadPhotos = React.useCallback(async () => {
@@ -463,16 +792,21 @@ function AdminApp() {
 
       const baseConfigResponse = await fetch("/frame.config.json", { cache: "no-store" });
       const baseConfig = baseConfigResponse.ok ? mergeConfig(await baseConfigResponse.json() as Partial<FrameConfig>) : defaultConfig;
+      setSpecialDayEvents(baseConfig.specialDays.events);
       if (!response.ok) {
         setImportantKeywordsText(baseConfig.calendar.importantKeywords.join("\n"));
+        setDisabledSpecialDayIds([]);
         return;
       }
 
       const settings = await response.json() as FrameSettings;
       const keywords = settings.calendar?.importantKeywords || baseConfig.calendar.importantKeywords;
       setImportantKeywordsText(keywords.join("\n"));
+      setDisabledSpecialDayIds(settings.specialDays?.disabledIds || []);
     } catch {
       setImportantKeywordsText(defaultConfig.calendar.importantKeywords.join("\n"));
+      setSpecialDayEvents(defaultConfig.specialDays.events);
+      setDisabledSpecialDayIds([]);
     }
   }, [pin]);
 
@@ -489,8 +823,7 @@ function AdminApp() {
     setPin(draftPin);
   }
 
-  async function uploadPhotos(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || []);
+  async function uploadPhotoFiles(files: File[]) {
     if (files.length === 0) return;
 
     const body = new FormData();
@@ -511,15 +844,38 @@ function AdminApp() {
       if (!response.ok) throw new Error("Upload failed");
       const payload = await response.json() as { results: Array<{ accepted: boolean; reason?: string }>; photos: AdminPhoto[] };
       const accepted = payload.results.filter((result) => result.accepted).length;
+      const rejected = payload.results.length - accepted;
       setPhotos(payload.photos);
       setActiveTab("pending");
-      setMessage(`${accepted} foto aggiunte alla coda da approvare`);
+      setActiveSection("photos");
+      setMessage(rejected > 0 ? `${accepted} foto aggiunte, ${rejected} già presenti o non valide` : `${accepted} foto aggiunte alla coda da approvare`);
     } catch {
       setMessage("Caricamento non riuscito");
     } finally {
       setBusy(false);
-      event.target.value = "";
     }
+  }
+
+  async function uploadPhotos(event: React.ChangeEvent<HTMLInputElement>) {
+    await uploadPhotoFiles(Array.from(event.target.files || []));
+    event.target.value = "";
+  }
+
+  function handleUploadDrag(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    if (!busy) setIsDraggingUpload(true);
+  }
+
+  function stopUploadDrag(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setIsDraggingUpload(false);
+  }
+
+  async function dropUploadPhotos(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setIsDraggingUpload(false);
+    if (busy) return;
+    await uploadPhotoFiles(Array.from(event.dataTransfer.files || []));
   }
 
   async function updateStatus(photo: AdminPhoto, status: PhotoStatus) {
@@ -539,6 +895,7 @@ function AdminApp() {
       }
       if (!response.ok) throw new Error("Update failed");
       setPhotos((current) => current.map((entry) => (entry.id === photo.id ? { ...entry, status } : entry)));
+      setMessage(`${photo.originalName} spostata in "${photoStatusLabels[status]}"`);
     } catch {
       setMessage("Aggiornamento non riuscito");
     } finally {
@@ -557,7 +914,10 @@ function AdminApp() {
           "Content-Type": "application/json",
           ...authHeaders(pin)
         },
-        body: JSON.stringify({ calendar: { importantKeywords } })
+        body: JSON.stringify({
+          calendar: { importantKeywords },
+          specialDays: { disabledIds: disabledSpecialDayIds }
+        })
       });
       if (response.status === 401) {
         setNeedsPin(true);
@@ -574,96 +934,220 @@ function AdminApp() {
     }
   }
 
+  async function setSpecialDayEnabled(eventId: string, enabled: boolean) {
+    const importantKeywords = parseKeywordEditorValue(importantKeywordsText);
+    const nextDisabledIds = enabled
+      ? disabledSpecialDayIds.filter((id) => id !== eventId)
+      : [...new Set([...disabledSpecialDayIds, eventId])];
+    setDisabledSpecialDayIds(nextDisabledIds);
+    setBusy(true);
+
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders(pin)
+        },
+        body: JSON.stringify({
+          calendar: { importantKeywords },
+          specialDays: { disabledIds: nextDisabledIds }
+        })
+      });
+      if (response.status === 401) {
+        setNeedsPin(true);
+        return;
+      }
+      if (!response.ok) throw new Error("Settings update failed");
+      const settings = await response.json() as FrameSettings;
+      setDisabledSpecialDayIds(settings.specialDays?.disabledIds || nextDisabledIds);
+      setMessage(enabled ? "Giornata evento attivata" : "Giornata evento disattivata");
+    } catch {
+      setDisabledSpecialDayIds(disabledSpecialDayIds);
+      setMessage("Aggiornamento giornate evento non riuscito");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main className="admin-shell">
-      <header className="admin-header">
-        <div>
-          <p className="section-label">Cornice Famiglia</p>
-          <h1>Foto</h1>
-        </div>
-        <a className="frame-link" href="/">Cornice</a>
-      </header>
-
       {needsPin ? (
-        <form className="pin-panel" onSubmit={submitPin}>
-          <label htmlFor="admin-pin">PIN admin</label>
-          <input
-            id="admin-pin"
-            inputMode="numeric"
-            value={draftPin}
-            onChange={(event) => setDraftPin(event.target.value)}
-            autoFocus
-          />
-          <button type="submit">Entra</button>
-        </form>
-      ) : (
-        <>
-          <label className="upload-panel">
-            <span>Aggiungi foto</span>
-            <small>JPEG, PNG, WebP o GIF. Le nuove foto entrano in coda.</small>
-            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={uploadPhotos} disabled={busy} />
-          </label>
-
-          <nav className="admin-tabs" aria-label="Stati foto">
-            {adminTabs.map((tab) => (
-              <button
-                className={activeTab === tab.status ? "active" : ""}
-                key={tab.status}
-                type="button"
-                onClick={() => setActiveTab(tab.status)}
-              >
-                {tab.label}
-                <span>{counts[tab.status]}</span>
-              </button>
-            ))}
-          </nav>
-
-          {message ? <p className="admin-message">{message}</p> : null}
-
-          <form className="settings-panel" onSubmit={saveImportantKeywords}>
-            <label htmlFor="important-keywords">Parole importanti</label>
-            <textarea
-              id="important-keywords"
-              value={importantKeywordsText}
-              onChange={(event) => setImportantKeywordsText(event.target.value)}
-              rows={8}
-              spellCheck={false}
+        <div className="admin-login">
+          <header className="admin-login-header">
+            <p className="admin-kicker">Cornice Famiglia</p>
+            <h1>Admin</h1>
+            <p>Accesso protetto per caricare, approvare e organizzare le foto del frame.</p>
+          </header>
+          <form className="pin-panel" onSubmit={submitPin}>
+            <label htmlFor="admin-pin">PIN admin</label>
+            <input
+              id="admin-pin"
+              inputMode="numeric"
+              value={draftPin}
+              onChange={(event) => setDraftPin(event.target.value)}
+              autoFocus
             />
-            <div className="settings-actions">
-              <small>Una parola o frase per riga. Puoi anche separarle con virgole.</small>
-              <button type="submit" disabled={busy}>Salva</button>
-            </div>
+            <button type="submit">Entra</button>
           </form>
+        </div>
+      ) : (
+        <div className="admin-layout">
+          <aside className="admin-sidebar">
+            <div>
+              <p className="admin-kicker">Cornice Famiglia</p>
+              <h1>Admin</h1>
+            </div>
+            <nav className="admin-sidebar-nav" aria-label="Sezioni admin">
+              <button className={activeSection === "photos" ? "active" : ""} type="button" onClick={() => setActiveSection("photos")}>
+                Foto
+              </button>
+              <button className={activeSection === "settings" ? "active" : ""} type="button" onClick={() => setActiveSection("settings")}>
+                Impostazioni
+              </button>
+            </nav>
+            <a className="frame-link" href="/">Apri cornice</a>
+          </aside>
 
-          <section className="photo-grid" aria-live="polite">
-            {visiblePhotos.length > 0 ? (
-              visiblePhotos.map((photo) => (
-                <article className="photo-card" key={photo.id}>
-                  <img src={photo.thumbSrc || photo.src} alt={photo.originalName} />
-                  <div className="photo-card-meta">
-                    <strong>{photo.originalName}</strong>
-                    <span>{photo.source} · {formatBytes(photo.size)} · {formatShortDate(photo.createdAt)}</span>
+          <section className="admin-main">
+            <header className="admin-topbar">
+              <div>
+                <p className="admin-kicker">{activeSection === "photos" ? "Libreria foto" : "Impostazioni cornice"}</p>
+                <h2>{activeSection === "photos" ? "Dashboard foto" : "Eventi e giornate speciali"}</h2>
+                <p>{activeSection === "photos" ? "Carica, approva e togli dal frame le immagini senza toccare il monitor." : "Gestisci parole calendario e giornate evento della cornice."}</p>
+              </div>
+            </header>
+
+            <section className="admin-metrics" aria-label="Riepilogo foto">
+              {adminTabs.map((tab) => (
+                <button className={activeTab === tab.status ? "active" : ""} key={tab.status} type="button" onClick={() => {
+                  setActiveSection("photos");
+                  setActiveTab(tab.status);
+                }}>
+                  <span>{tab.label}</span>
+                  <strong>{counts[tab.status]}</strong>
+                </button>
+              ))}
+            </section>
+
+            {message ? <p className="admin-message" role="status">{message}</p> : null}
+
+            {activeSection === "photos" ? (
+              <div className="admin-dashboard-grid">
+                <section className="admin-card upload-card">
+                  <div>
+                    <p className="admin-kicker">Upload</p>
+                    <h3>Nuove foto</h3>
+                    <p>Le immagini caricate entrano sempre in “Da approvare”.</p>
                   </div>
-                  <div className="photo-card-actions">
-                    {photo.status !== "approved" ? (
-                      <button type="button" onClick={() => updateStatus(photo, "approved")} disabled={busy}>Approva</button>
-                    ) : null}
-                    {photo.status !== "hidden" ? (
-                      <button type="button" onClick={() => updateStatus(photo, "hidden")} disabled={busy}>Nascondi</button>
-                    ) : null}
-                    {photo.status !== "trashed" ? (
-                      <button type="button" onClick={() => updateStatus(photo, "trashed")} disabled={busy}>Cestina</button>
+                  <label
+                    className={`upload-panel ${busy ? "is-busy" : ""} ${isDraggingUpload ? "is-dragging" : ""}`}
+                    onDragEnter={handleUploadDrag}
+                    onDragOver={handleUploadDrag}
+                    onDragLeave={stopUploadDrag}
+                    onDrop={dropUploadPhotos}
+                  >
+                    <span>{isDraggingUpload ? "Rilascia qui" : busy ? "Caricamento in corso" : "Trascina qui le foto"}</span>
+                    <small>Oppure tocca per scegliere file. JPEG, PNG, WebP o GIF.</small>
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={uploadPhotos} disabled={busy} />
+                  </label>
+                </section>
+
+                <section className="admin-card library-card">
+                  <div className="library-header">
+                    <div>
+                      <p className="admin-kicker">Revisione</p>
+                      <h3>{adminTabs.find((tab) => tab.status === activeTab)?.label}</h3>
+                      <p>Usa il riepilogo in alto per cambiare coda.</p>
+                    </div>
+                  </div>
+
+                  <section className="photo-grid" aria-live="polite" aria-label={adminTabs.find((tab) => tab.status === activeTab)?.label}>
+                    {visiblePhotos.length > 0 ? (
+                      visiblePhotos.map((photo) => (
+                        <article className="photo-card" key={photo.id}>
+                          <img src={photo.thumbSrc || photo.src} alt={photo.originalName} />
+                          <div className="photo-card-meta">
+                            <span className={`status-pill status-${photo.status}`}>{photoStatusLabels[photo.status]}</span>
+                            <strong>{photo.originalName}</strong>
+                            <span>{photo.source === "telegram" ? "Telegram" : "Web"} · {formatBytes(photo.size)} · {formatShortDate(photo.createdAt)}</span>
+                          </div>
+                          <div className="photo-card-actions">
+                            {photo.status !== "approved" ? (
+                              <button className="primary-action" type="button" onClick={() => updateStatus(photo, "approved")} disabled={busy}>Approva</button>
+                            ) : null}
+                            {photo.status !== "hidden" ? (
+                              <button type="button" onClick={() => updateStatus(photo, "hidden")} disabled={busy}>{photo.status === "approved" ? "Togli" : "Nascondi"}</button>
+                            ) : null}
+                            {photo.status !== "trashed" ? (
+                              <button type="button" onClick={() => updateStatus(photo, "trashed")} disabled={busy}>Cestina</button>
+                            ) : (
+                              <button className="primary-action" type="button" onClick={() => updateStatus(photo, "hidden")} disabled={busy}>Ripristina</button>
+                            )}
+                          </div>
+                        </article>
+                      ))
                     ) : (
-                      <button type="button" onClick={() => updateStatus(photo, "hidden")} disabled={busy}>Ripristina</button>
+                      <div className="empty-admin">
+                        <strong>{emptyAdminTitle(activeTab)}</strong>
+                        <span>{emptyAdminText(activeTab)}</span>
+                      </div>
                     )}
-                  </div>
-                </article>
-              ))
+                  </section>
+                </section>
+              </div>
             ) : (
-              <p className="empty-admin">Nessuna foto in questa sezione</p>
+              <div className="settings-stack">
+                <form className="admin-card settings-panel" onSubmit={saveImportantKeywords}>
+                  <div>
+                    <p className="admin-kicker">Calendario</p>
+                    <label htmlFor="important-keywords">Eventi importanti</label>
+                    <p>Parole e frasi che evidenziano automaticamente gli appuntamenti nella cornice.</p>
+                  </div>
+                  <textarea
+                    id="important-keywords"
+                    value={importantKeywordsText}
+                    onChange={(event) => setImportantKeywordsText(event.target.value)}
+                    rows={10}
+                    spellCheck={false}
+                  />
+                  <div className="settings-actions">
+                    <small>Una parola o frase per riga. Puoi anche separarle con virgole.</small>
+                    <button type="submit" disabled={busy}>Salva</button>
+                  </div>
+                </form>
+
+                <section className="admin-card special-days-panel">
+                  <div>
+                    <p className="admin-kicker">Giornate evento</p>
+                    <h3>Temi automatici</h3>
+                    <p>Disattiva i temi che non vuoi mostrare sulla cornice. Le date restano definite nel file di configurazione.</p>
+                  </div>
+                  <div className="special-day-toggle-list">
+                    {specialDayEvents.map((event) => {
+                      const configEnabled = event.enabled !== false;
+                      const enabled = configEnabled && !disabledSpecialDayIds.includes(event.id);
+                      return (
+                        <label className="special-day-toggle" key={event.id}>
+                          <span>
+                            <strong>{event.label}</strong>
+                            <small>{specialDayScheduleLabel(event.schedule)}</small>
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={enabled}
+                            disabled={busy || !configEnabled}
+                            onChange={(changeEvent) => setSpecialDayEnabled(event.id, changeEvent.target.checked)}
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </section>
+              </div>
             )}
           </section>
-        </>
+        </div>
       )}
     </main>
   );
@@ -701,11 +1185,47 @@ function parseKeywordEditorValue(value: string) {
     .filter(Boolean))];
 }
 
+function specialDayScheduleLabel(schedule: SpecialDaySchedule) {
+  if (schedule.type === "fixedDate") return `${schedule.day}/${schedule.month}`;
+  if (schedule.type === "dateRange") return `${schedule.start.day}/${schedule.start.month} - ${schedule.end.day}/${schedule.end.month}`;
+  if (schedule.type === "nthWeekday") return `${schedule.nth} ${weekdayName(schedule.weekday)} di ${monthName(schedule.month)}`;
+  if (schedule.type === "easterOffset") return schedule.durationDays && schedule.durationDays > 1 ? "Pasqua e lunedì dell'angelo" : "Pasqua";
+  return "Data configurata";
+}
+
+function monthName(month: number) {
+  return new Intl.DateTimeFormat("it-IT", { month: "long" }).format(new Date(2024, month - 1, 1));
+}
+
+function weekdayName(weekday: number) {
+  return new Intl.DateTimeFormat("it-IT", { weekday: "long" }).format(new Date(2024, 0, 7 + weekday));
+}
+
 function countPhotos(photos: AdminPhoto[]) {
   return photos.reduce<Record<PhotoStatus, number>>((counts, photo) => {
     counts[photo.status] += 1;
     return counts;
   }, { pending: 0, approved: 0, hidden: 0, trashed: 0 });
+}
+
+function emptyAdminTitle(status: PhotoStatus) {
+  const titles: Record<PhotoStatus, string> = {
+    pending: "Nessuna foto da approvare",
+    approved: "Nessuna foto visibile",
+    hidden: "Nessuna foto nascosta",
+    trashed: "Cestino vuoto"
+  };
+  return titles[status];
+}
+
+function emptyAdminText(status: PhotoStatus) {
+  const descriptions: Record<PhotoStatus, string> = {
+    pending: "Carica nuove foto: compariranno qui prima di andare nella cornice.",
+    approved: "Approva qualche foto dalla coda per mostrarla nel frame.",
+    hidden: "Le foto tolte dalla cornice senza cestinarle finiranno qui.",
+    trashed: "Le foto cestinate restano recuperabili da questa sezione."
+  };
+  return descriptions[status];
 }
 
 function nextPhotoIndex(current: number, length: number, queueRef: React.MutableRefObject<number[]>) {
@@ -725,6 +1245,23 @@ function shuffle(values: number[]) {
     [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
   }
   return copy;
+}
+
+function containedBox(maxWidth: number, maxHeight: number, aspect: number) {
+  if (maxWidth <= 0 || maxHeight <= 0 || aspect <= 0) return null;
+
+  const frameAspect = maxWidth / maxHeight;
+  if (frameAspect > aspect) {
+    return {
+      width: Math.round(maxHeight * aspect),
+      height: Math.round(maxHeight)
+    };
+  }
+
+  return {
+    width: Math.round(maxWidth),
+    height: Math.round(maxWidth / aspect)
+  };
 }
 
 async function calendarSources(calendar: FrameConfig["calendar"]): Promise<CalendarSource[]> {
@@ -887,7 +1424,19 @@ function mergeConfig(loadedConfig: Partial<FrameConfig>, settings: FrameSettings
     ...defaultConfig.calendar,
     ...loadedConfig.calendar
   };
+  const mergedSpecialDays = {
+    ...defaultConfig.specialDays,
+    ...loadedConfig.specialDays,
+    ambientEveryMinutes: {
+      ...defaultConfig.specialDays.ambientEveryMinutes,
+      ...loadedConfig.specialDays?.ambientEveryMinutes
+    },
+    events: Array.isArray(loadedConfig.specialDays?.events) && loadedConfig.specialDays.events.length > 0
+      ? loadedConfig.specialDays.events
+      : defaultConfig.specialDays.events
+  };
   const importantKeywords = settings.calendar?.importantKeywords;
+  const disabledSpecialDayIds = new Set(settings.specialDays?.disabledIds || []);
 
   return {
     ...defaultConfig,
@@ -903,8 +1452,100 @@ function mergeConfig(loadedConfig: Partial<FrameConfig>, settings: FrameSettings
     slideshow: {
       ...defaultConfig.slideshow,
       ...loadedConfig.slideshow
+    },
+    specialDays: {
+      ...mergedSpecialDays,
+      events: mergedSpecialDays.events.map((event) => ({
+        ...event,
+        enabled: event.enabled !== false && !disabledSpecialDayIds.has(event.id)
+      }))
     }
   };
+}
+
+function activeSpecialDayForDate(specialDays: FrameConfig["specialDays"], date: Date) {
+  if (specialDays.enabled === false) return undefined;
+  return specialDays.events.find((event) => event.enabled !== false && isSpecialDayActive(event.schedule, date));
+}
+
+function isSpecialDayActive(schedule: SpecialDaySchedule, date: Date) {
+  if (schedule.type === "fixedDate") {
+    return date.getMonth() + 1 === schedule.month && date.getDate() === schedule.day;
+  }
+
+  if (schedule.type === "dateRange") {
+    return isDateRangeActive(schedule, date);
+  }
+
+  if (schedule.type === "nthWeekday") {
+    const target = nthWeekdayOfMonth(date.getFullYear(), schedule.month, schedule.weekday, schedule.nth);
+    return sameLocalDate(date, target);
+  }
+
+  if (schedule.type === "easterOffset") {
+    const start = addDays(easterDate(date.getFullYear()), schedule.offsetDays);
+    const durationDays = Math.max(1, schedule.durationDays || 1);
+    const end = addDays(start, durationDays - 1);
+    return startOfLocalDay(date) >= startOfLocalDay(start) && startOfLocalDay(date) <= startOfLocalDay(end);
+  }
+
+  return false;
+}
+
+function isDateRangeActive(schedule: DateRangeSchedule, date: Date) {
+  const year = date.getFullYear();
+  const start = new Date(year, schedule.start.month - 1, schedule.start.day);
+  const end = new Date(year, schedule.end.month - 1, schedule.end.day);
+  const today = startOfLocalDay(date).getTime();
+
+  if (start <= end) {
+    return today >= start.getTime() && today <= end.getTime();
+  }
+
+  const startThisYear = start.getTime();
+  const endThisYear = end.getTime();
+  const startPreviousYear = new Date(year - 1, schedule.start.month - 1, schedule.start.day).getTime();
+  const endNextYear = new Date(year + 1, schedule.end.month - 1, schedule.end.day).getTime();
+
+  return (today >= startThisYear && today <= endNextYear) || (today >= startPreviousYear && today <= endThisYear);
+}
+
+function nthWeekdayOfMonth(year: number, month: number, weekday: number, nth: number) {
+  const firstDay = new Date(year, month - 1, 1);
+  const offset = (weekday - firstDay.getDay() + 7) % 7;
+  return new Date(year, month - 1, 1 + offset + (nth - 1) * 7);
+}
+
+function easterDate(year: number) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date: Date, days: number) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+function sameLocalDate(left: Date, right: Date) {
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 type WeatherLocation = {
