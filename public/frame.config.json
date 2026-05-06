@@ -11,7 +11,7 @@
     "refreshMinutes": 30
   },
   "calendar": {
-    "icsUrl": "/calendar/family.ics",
+    "icsUrl": "/api/calendar.ics",
     "lookaheadDays": 14,
     "importantKeywords": ["birthday", "anniversary", "doctor", "travel", "school", "family"]
   },

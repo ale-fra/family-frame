@@ -19,12 +19,18 @@ const refreshScript = process.env.FRAME_REFRESH_SCRIPT
 const port = Number(process.env.FRAME_PHOTO_SERVER_PORT || 8787);
 const adminPin = process.env.FRAME_ADMIN_PIN || "";
 const telegramToken = process.env.FRAME_TELEGRAM_BOT_TOKEN || "";
+const calendarIcsUrl = process.env.FRAME_CALENDAR_ICS_URL || "";
+const calendarCacheMs = Number(process.env.FRAME_CALENDAR_CACHE_SECONDS || 900) * 1000;
 const allowedTelegramChats = new Set(
   (process.env.FRAME_TELEGRAM_ALLOWED_CHAT_IDS || "")
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean)
 );
+let calendarCache = {
+  text: "",
+  fetchedAt: 0
+};
 
 const allowedMimeTypes = new Map([
   ["image/jpeg", ".jpg"],
@@ -61,6 +67,16 @@ await ensureStorage();
 
 app.get("/api/health", (_request, response) => {
   response.json({ ok: true });
+});
+
+app.get("/api/calendar.ics", async (_request, response) => {
+  try {
+    const calendarText = await fetchCalendarIcs();
+    response.type("text/calendar").set("Cache-Control", "no-store").send(calendarText);
+  } catch (error) {
+    console.error("Calendar fetch failed:", error.message);
+    response.status(502).json({ error: "Calendar unavailable" });
+  }
 });
 
 app.get("/api/photos", async (request, response) => {
@@ -199,6 +215,45 @@ async function writeDb(db) {
   const tmpPath = `${dbPath}.tmp`;
   await fs.writeFile(tmpPath, `${JSON.stringify(db, null, 2)}\n`, "utf8");
   await fs.rename(tmpPath, dbPath);
+}
+
+async function fetchCalendarIcs() {
+  if (!calendarIcsUrl) {
+    throw new Error("FRAME_CALENDAR_ICS_URL is not configured");
+  }
+
+  const now = Date.now();
+  if (calendarCache.text && now - calendarCache.fetchedAt < calendarCacheMs) {
+    return calendarCache.text;
+  }
+
+  try {
+    const response = await fetch(calendarIcsUrl, {
+      headers: {
+        Accept: "text/calendar,text/plain;q=0.9,*/*;q=0.8"
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`Google Calendar returned ${response.status}`);
+    }
+
+    const calendarText = await response.text();
+    if (!calendarText.includes("BEGIN:VCALENDAR")) {
+      throw new Error("Response is not an iCalendar feed");
+    }
+
+    calendarCache = {
+      text: calendarText,
+      fetchedAt: now
+    };
+    return calendarText;
+  } catch (error) {
+    if (calendarCache.text) {
+      console.warn("Using cached calendar after fetch failure:", error.message);
+      return calendarCache.text;
+    }
+    throw error;
+  }
 }
 
 async function ingestBuffer(buffer, { originalName, mimeType, source }) {

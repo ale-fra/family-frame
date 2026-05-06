@@ -106,7 +106,22 @@ sudo loginctl enable-linger alessandro
 
 ## Calendar
 
-Replace `public/calendar/family.ics` with an exported family calendar, or change `frame.config.json` to point `calendar.icsUrl` at another `.ics` URL.
+By default the frame reads Google Calendar through the local server endpoint at `/api/calendar.ics`.
+The server proxies the configured private iCal feed, caches it briefly, and keeps the calendar URL out
+of the browser config. For local runs, provide the source feed with:
+
+```bash
+FRAME_CALENDAR_ICS_URL="https://calendar.google.com/calendar/ical/..." npm run server
+```
+
+For the systemd service, keep the private URL in `~/.config/family-frame/server.env`:
+
+```bash
+FRAME_CALENDAR_ICS_URL=https://calendar.google.com/calendar/ical/...
+```
+
+For fully offline/static use, replace `public/calendar/family.ics` with an exported calendar and point
+`frame.config.json` `calendar.icsUrl` back to `/calendar/family.ics`.
 
 ## Weather
 
