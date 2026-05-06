@@ -778,15 +778,18 @@ function titleMatchesImportantKeyword(title: string, normalizedKeywords: string[
 
 function parseEventTitle(rawTitle: string) {
   const trimmedTitle = rawTitle.trim();
-  if (!trimmedTitle.startsWith("!")) {
-    return { title: rawTitle, important: false };
-  }
+  const important = trimmedTitle.startsWith("!");
+  const titleWithoutFlag = important ? trimmedTitle.replace(/^!\s*/, "") : trimmedTitle;
+  const titleWithoutTimePrefix = stripLeadingCompactTime(titleWithoutFlag);
 
-  const title = trimmedTitle.replace(/^!\s*/, "");
   return {
-    title: title || rawTitle,
-    important: true
+    title: titleWithoutTimePrefix || titleWithoutFlag || rawTitle,
+    important
   };
+}
+
+function stripLeadingCompactTime(title: string) {
+  return title.replace(/^\d{4}(?:\s+|[-:.]\s*)/, "").trim();
 }
 
 function uniqueCalendarEvents(events: CalendarEvent[]) {
