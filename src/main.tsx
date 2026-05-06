@@ -76,10 +76,10 @@ type CalendarEvent = {
 };
 
 const defaultConfig: FrameConfig = {
-  frameName: "Family Frame",
+  frameName: "Cornice Famiglia",
   photoManifestUrl: "/photos/manifest.json",
   weather: {
-    city: "Portuense, Rome",
+    city: "Portuense, Roma",
     latitude: 41.8667,
     longitude: 12.4569,
     timezone: "Europe/Rome",
@@ -89,9 +89,9 @@ const defaultConfig: FrameConfig = {
   },
   calendar: {
     icsUrl: "/calendar/family.ics",
-    lookaheadDays: 14,
+    lookaheadDays: 13,
     maxEvents: 6,
-    importantKeywords: ["birthday", "anniversary", "doctor", "travel", "school", "family"]
+    importantKeywords: ["compleanno", "anniversario", "dottore", "viaggio", "scuola", "famiglia", "birthday", "anniversary", "doctor", "travel", "school", "family"]
   },
   slideshow: {
     intervalSeconds: 18
@@ -249,7 +249,7 @@ function FrameApp() {
       <section className="photo-stage">
         {activePhoto ? (
           <>
-            <img src={activePhoto.src} alt={activePhoto.caption || "Family photo"} />
+            <img src={activePhoto.src} alt={activePhoto.caption || "Foto di famiglia"} />
             {activePhoto.caption ? <div className="photo-caption">{activePhoto.caption}</div> : null}
           </>
         ) : (
@@ -277,7 +277,7 @@ function FrameApp() {
                 <span>{Math.round(weather.current.temperature)}°</span>
               </div>
               <div className="weather-detail">
-                Feels {Math.round(weather.current.apparentTemperature)}° · Wind {Math.round(weather.current.windSpeed)} km/h
+                Percepiti {Math.round(weather.current.apparentTemperature)}° · Vento {Math.round(weather.current.windSpeed)} km/h
               </div>
               <div className="forecast-row">
                 {weather.forecast.map((day) => (
@@ -291,12 +291,12 @@ function FrameApp() {
               </div>
             </>
           ) : (
-            <p className="muted">{weather.error || "Loading weather"}</p>
+            <p className="muted">{weather.error || "Caricamento meteo"}</p>
           )}
         </section>
 
         <section className="events-block">
-          <div className="section-label">Important events</div>
+          <div className="section-label">Eventi importanti</div>
           {events.length > 0 ? (
             <div className="event-list">
               {events.slice(0, config.calendar.maxEvents).map((event) => (
@@ -307,7 +307,7 @@ function FrameApp() {
               ))}
             </div>
           ) : (
-            <p className="muted">No upcoming events</p>
+            <p className="muted">Nessun evento in arrivo</p>
           )}
         </section>
       </aside>
@@ -384,7 +384,7 @@ function AdminApp() {
       setActiveTab("pending");
       setMessage(`${accepted} foto aggiunte alla coda da approvare`);
     } catch {
-      setMessage("Upload non riuscito");
+      setMessage("Caricamento non riuscito");
     } finally {
       setBusy(false);
       event.target.value = "";
@@ -419,10 +419,10 @@ function AdminApp() {
     <main className="admin-shell">
       <header className="admin-header">
         <div>
-          <p className="section-label">Family Frame</p>
+          <p className="section-label">Cornice Famiglia</p>
           <h1>Foto</h1>
         </div>
-        <a className="frame-link" href="/">Frame</a>
+        <a className="frame-link" href="/">Cornice</a>
       </header>
 
       {needsPin ? (
@@ -664,7 +664,7 @@ async function resolveWeatherLocation(config: FrameConfig["weather"]): Promise<W
     latitude: config.latitude,
     longitude: config.longitude,
     timezone: config.timezone,
-    label: config.label || city || "Weather"
+    label: config.label || city || "Meteo"
   };
 
   if (!city) return fallback;
@@ -672,7 +672,7 @@ async function resolveWeatherLocation(config: FrameConfig["weather"]): Promise<W
   const params = new URLSearchParams({
     name: city,
     count: "1",
-    language: "en",
+    language: "it",
     format: "json"
   });
   const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`);
@@ -759,25 +759,25 @@ function weatherKind(code: number) {
 
 function weatherDescription(kind: ReturnType<typeof weatherKind>) {
   const labels = {
-    sun: "Clear sky",
-    cloud: "Cloudy",
-    fog: "Fog",
-    rain: "Rain",
-    snow: "Snow",
-    storm: "Thunderstorm"
+    sun: "Sereno",
+    cloud: "Nuvoloso",
+    fog: "Nebbia",
+    rain: "Pioggia",
+    snow: "Neve",
+    storm: "Temporale"
   };
   return labels[kind];
 }
 
 function formatTime(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat("it-IT", {
     hour: "2-digit",
     minute: "2-digit"
   }).format(date);
 }
 
 function formatFullDate(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat("it-IT", {
     weekday: "long",
     day: "numeric",
     month: "long"
@@ -785,18 +785,18 @@ function formatFullDate(date: Date) {
 }
 
 function formatDay(dateText: string) {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "short" }).format(new Date(dateText));
+  return new Intl.DateTimeFormat("it-IT", { weekday: "short" }).format(new Date(dateText));
 }
 
 function formatEventDate(event: CalendarEvent) {
   if (event.allDay) {
-    return new Intl.DateTimeFormat("en-GB", {
+    return new Intl.DateTimeFormat("it-IT", {
       weekday: "short",
       day: "numeric",
       month: "short"
     }).format(event.startsAt);
   }
-  return new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat("it-IT", {
     weekday: "short",
     day: "numeric",
     month: "short",

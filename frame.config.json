@@ -1,8 +1,8 @@
 {
-  "frameName": "Family Frame",
+  "frameName": "Cornice Famiglia",
   "photoManifestUrl": "/photos/manifest.json",
   "weather": {
-    "city": "Portuense, Rome",
+    "city": "Portuense, Roma",
     "latitude": 41.8667,
     "longitude": 12.4569,
     "timezone": "Europe/Rome",
@@ -12,9 +12,9 @@
   },
   "calendar": {
     "icsUrl": "/api/calendar.ics",
-    "lookaheadDays": 14,
+    "lookaheadDays": 13,
     "maxEvents": 6,
-    "importantKeywords": ["birthday", "anniversary", "doctor", "travel", "school", "family"]
+    "importantKeywords": ["compleanno", "anniversario", "dottore", "viaggio", "scuola", "famiglia", "birthday", "anniversary", "doctor", "travel", "school", "family"]
   },
   "slideshow": {
     "intervalSeconds": 18
