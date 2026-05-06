@@ -718,6 +718,93 @@ function FloatingShapes({ kind }: { kind: "heart" | "flower" | "star" }) {
   );
 }
 
+type FlowerKind = "peony" | "peony-pale" | "daisy" | "bud" | "leaf" | "leaf-dark" | "heart";
+
+function FlowerSVG({ kind }: { kind: FlowerKind }) {
+  switch (kind) {
+    case "peony":
+      return (
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+          <g fill="#d99baa">
+            <circle cx="12" cy="8" r="5" />
+            <circle cx="7" cy="13" r="5" />
+            <circle cx="17" cy="13" r="5" />
+            <circle cx="12" cy="16" r="5" />
+          </g>
+          <g fill="#e8b8c4" opacity="0.85">
+            <circle cx="12" cy="11" r="4" />
+            <circle cx="9" cy="13" r="3" />
+            <circle cx="15" cy="13" r="3" />
+          </g>
+          <circle cx="12" cy="12" r="2" fill="#b46578" />
+        </svg>
+      );
+    case "peony-pale":
+      return (
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <g fill="#eac8d2">
+            <circle cx="12" cy="8" r="5" />
+            <circle cx="7" cy="13" r="5" />
+            <circle cx="17" cy="13" r="5" />
+            <circle cx="12" cy="16" r="5" />
+          </g>
+          <g fill="#f3dde2" opacity="0.9">
+            <circle cx="12" cy="11" r="4" />
+          </g>
+          <circle cx="12" cy="12" r="2" fill="#c98ea0" />
+        </svg>
+      );
+    case "daisy":
+      return (
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <g fill="#fffaf0" stroke="#e8d5b6" strokeWidth="0.4">
+            <ellipse cx="12" cy="4.5" rx="2.4" ry="3.6" />
+            <ellipse cx="12" cy="19.5" rx="2.4" ry="3.6" />
+            <ellipse cx="4.5" cy="12" rx="3.6" ry="2.4" />
+            <ellipse cx="19.5" cy="12" rx="3.6" ry="2.4" />
+            <ellipse cx="6.6" cy="6.6" rx="2.4" ry="3.6" transform="rotate(-45 6.6 6.6)" />
+            <ellipse cx="17.4" cy="6.6" rx="2.4" ry="3.6" transform="rotate(45 17.4 6.6)" />
+            <ellipse cx="6.6" cy="17.4" rx="2.4" ry="3.6" transform="rotate(45 6.6 17.4)" />
+            <ellipse cx="17.4" cy="17.4" rx="2.4" ry="3.6" transform="rotate(-45 17.4 17.4)" />
+          </g>
+          <circle cx="12" cy="12" r="3" fill="#e8b048" />
+        </svg>
+      );
+    case "bud":
+      return (
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <circle cx="12" cy="12" r="6" fill="#e8c54a" />
+          <circle cx="12" cy="12" r="3" fill="#a87a18" />
+        </svg>
+      );
+    case "leaf":
+      return (
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path d="M4 16 C4 8, 16 4, 20 4 C20 12, 14 18, 4 16 Z" fill="#7ca673" />
+          <path d="M5 15 L18 6" stroke="#5e8459" strokeWidth="1" fill="none" />
+        </svg>
+      );
+    case "leaf-dark":
+      return (
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path d="M4 16 C4 8, 16 4, 20 4 C20 12, 14 18, 4 16 Z" fill="#5e8459" />
+          <path d="M5 15 L18 6" stroke="#476641" strokeWidth="1" fill="none" />
+        </svg>
+      );
+    case "heart":
+      return (
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path
+            d="M12 21 C12 21 5 16.4 5 10 A4 4 0 0 1 12 8 A4 4 0 0 1 19 10 C19 16.4 12 21 12 21 Z"
+            fill="#d57a89"
+            stroke="#a85068"
+            strokeWidth="0.5"
+          />
+        </svg>
+      );
+  }
+}
+
 function PhotoFrameFlowers() {
   return (
     <div className="photo-frame-flowers">
