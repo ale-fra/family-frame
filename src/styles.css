@@ -211,6 +211,56 @@ body:has(.admin-shell) {
   box-shadow: 0 8px 20px rgba(79, 67, 49, 0.08);
 }
 
+.special-day-festone {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 11px 30px 9px;
+  background: linear-gradient(180deg, #d57a89, #b85b6f);
+  color: #fffaf0;
+  font-family: "Georgia", "Times New Roman", serif;
+  font-style: italic;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(184, 91, 111, 0.36);
+  animation: banner-sway 5s ease-in-out infinite;
+}
+
+.special-day-festone::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -14px;
+  width: 18px;
+  background: inherit;
+  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+}
+
+.special-day-festone::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -14px;
+  width: 18px;
+  background: inherit;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+@keyframes banner-sway {
+  0%,
+  100% {
+    transform: translateX(-50%) rotate(0deg);
+  }
+  50% {
+    transform: translateX(-50%) rotate(0.6deg);
+  }
+}
+
 .special-lights {
   position: absolute;
   top: 8px;

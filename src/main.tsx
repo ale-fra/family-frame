@@ -53,6 +53,7 @@ type SpecialDayEffect =
   | "flowers"
   | "springDecor"
   | "pumpkinGlow"
+  | "festone"
   | "stars";
 
 type SpecialDayTheme =
@@ -648,7 +649,9 @@ function SpecialDayLayer({ specialDay, pulse }: { specialDay?: SpecialDayConfig;
   return (
     <div className={`special-day-layer theme-${specialDay.theme}`} aria-hidden="true">
       <div className="special-day-glow" />
-      <div className="special-day-ribbon">{specialDay.label}</div>
+      {effects.has("festone")
+        ? <FestoneBanner label={specialDay.label} />
+        : <div className="special-day-ribbon">{specialDay.label}</div>}
       {effects.has("warmLights") ? <WarmLights /> : null}
       {effects.has("santaPeek") ? <SantaPeek key={`santa-${burstKey}`} /> : null}
       {effects.has("confettiBurst") ? <ConfettiBurst key={`confetti-${burstKey}`} /> : null}
@@ -658,6 +661,10 @@ function SpecialDayLayer({ specialDay, pulse }: { specialDay?: SpecialDayConfig;
       {effects.has("stars") ? <FloatingShapes key={`stars-${burstKey}`} kind="star" /> : null}
     </div>
   );
+}
+
+function FestoneBanner({ label }: { label: string }) {
+  return <div className="special-day-festone">{label}</div>;
 }
 
 function WarmLights() {
