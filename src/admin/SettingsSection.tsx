@@ -147,7 +147,7 @@ function CalendarSourcesEditor({
     setDraftSources((current) => [
       ...current,
       {
-        id: `admin-${crypto.randomUUID()}`,
+        id: adminCalendarSourceId(),
         label: `Calendario ${current.length + 1}`,
         icsUrl: "",
         enabled: true
@@ -239,6 +239,15 @@ function CalendarSourcesEditor({
       </CardFooter>
     </Card>
   );
+}
+
+function adminCalendarSourceId() {
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID === "function") return `admin-${cryptoApi.randomUUID()}`;
+  const random = typeof cryptoApi?.getRandomValues === "function"
+    ? cryptoApi.getRandomValues(new Uint32Array(2)).join("-")
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `admin-${random}`;
 }
 
 function KeywordTokenEditor({
