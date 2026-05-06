@@ -3,11 +3,10 @@ import type { SpecialDayConfig, SpecialDaySchedule } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { specialDayScheduleLabel } from "./labels";
-import { CalendarDays, Save, Sparkles } from "lucide-react";
+import { CalendarDays, Save, Sparkles, X } from "lucide-react";
 
 type Props = {
   keywordsText: string;
@@ -50,17 +49,13 @@ export function SettingsSection({
           <Label htmlFor="important-keywords" className="sr-only">
             Eventi importanti
           </Label>
-          <Textarea
-            id="important-keywords"
+          <KeywordTokenEditor
             value={keywordsText}
-            onChange={(event) => onKeywordsChange(event.target.value)}
-            rows={10}
-            spellCheck={false}
-            placeholder="compleanno&#10;visita medica&#10;…"
-            className="font-mono text-sm"
+            onChange={onKeywordsChange}
+            disabled={busy}
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            Una parola o frase per riga. Puoi anche separarle con virgole.
+            Premi Invio o usa una virgola per aggiungere una parola o frase.
           </p>
         </CardContent>
         <CardFooter className="justify-end">
@@ -86,9 +81,9 @@ export function SettingsSection({
               return (
                 <li
                   key={event.id}
-                  className="flex items-center justify-between gap-4 px-6 py-4"
+                  className="flex flex-col gap-4 px-6 py-4 sm:flex-row sm:items-start sm:justify-between"
                 >
-                  <div className="min-w-0 space-y-0.5">
+                  <div className="min-w-0 flex-1 space-y-0.5">
                     <p className="text-sm font-medium leading-none">{event.label}</p>
                     <p className="text-xs text-muted-foreground">
                       {specialDayScheduleLabel(event.schedule)}
@@ -105,6 +100,7 @@ export function SettingsSection({
                     disabled={busy || !configEnabled}
                     onCheckedChange={(checked) => onToggleEvent(event.id, checked)}
                     aria-label={`Attiva ${event.label}`}
+                    className="sm:mt-1"
                   />
                 </li>
               );
@@ -114,6 +110,103 @@ export function SettingsSection({
       </Card>
     </div>
   );
+}
+
+function KeywordTokenEditor({
+  value,
+  onChange,
+  disabled
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+}) {
+  const [draft, setDraft] = React.useState("");
+  const tokens = React.useMemo(() => parseKeywordTokens(value), [value]);
+
+  function commitDraft(nextDraft = draft) {
+    const additions = parseKeywordTokens(nextDraft);
+    if (additions.length === 0) {
+      setDraft("");
+      return;
+    }
+    onChange([...new Set([...tokens, ...additions])].join(", "));
+    setDraft("");
+  }
+
+  function removeToken(token: string) {
+    onChange(tokens.filter((entry) => entry !== token).join(", "));
+  }
+
+  return (
+    <div
+      className="min-h-36 rounded-md border border-input bg-background p-2 focus-within:ring-[3px] focus-within:ring-ring/50"
+      onClick={(event) => {
+        const input = event.currentTarget.querySelector("input");
+        input?.focus();
+      }}
+    >
+      <div className="flex max-h-64 flex-wrap gap-2 overflow-y-auto pr-1">
+        {tokens.map((token) => (
+          <span
+            key={token}
+            className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 text-sm"
+          >
+            <span className="truncate">{token}</span>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={(event) => {
+                event.stopPropagation();
+                removeToken(token);
+              }}
+              className="rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-50"
+              aria-label={`Rimuovi ${token}`}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        <Input
+          id="important-keywords"
+          value={draft}
+          disabled={disabled}
+          spellCheck={false}
+          placeholder={tokens.length === 0 ? "compleanno, visita medica, ..." : "Aggiungi parola"}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            if (nextValue.includes(",")) {
+              commitDraft(nextValue);
+              return;
+            }
+            setDraft(nextValue);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitDraft();
+            }
+            if (event.key === "Backspace" && draft.length === 0 && tokens.length > 0) {
+              onChange(tokens.slice(0, -1).join(", "));
+            }
+          }}
+          onBlur={() => commitDraft()}
+          className="h-8 min-w-44 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
+        />
+      </div>
+    </div>
+  );
+}
+
+function parseKeywordTokens(value: string) {
+  return [
+    ...new Set(
+      value
+        .split(/[\n,]/)
+        .map((keyword) => keyword.trim())
+        .filter(Boolean)
+    )
+  ];
 }
 
 function ScheduleEditor({
@@ -141,7 +234,7 @@ function ScheduleEditor({
   }
 
   return (
-    <div className="mt-3 grid gap-2 rounded-md border border-border/70 bg-muted/25 p-3 sm:grid-cols-[140px_1fr_auto]">
+    <div className="mt-3 grid gap-2 rounded-md border border-border/70 bg-muted/25 p-3 lg:grid-cols-[140px_1fr_auto]">
       <label className="grid gap-1 text-xs text-muted-foreground">
         Tipo
         <select
@@ -156,7 +249,7 @@ function ScheduleEditor({
           <option value="easterOffset">Pasqua</option>
         </select>
       </label>
-      <div className="grid gap-2 sm:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <ScheduleFields schedule={draft} disabled={busy} onChange={setDraft} />
       </div>
       <Button
