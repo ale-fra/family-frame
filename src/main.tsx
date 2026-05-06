@@ -547,8 +547,8 @@ function FrameApp() {
 
   return (
     <main className="frame-shell">
-      <SpecialDayLayer specialDay={activeSpecialDay} pulse={specialDayPulse} />
       <section className="photo-stage" ref={photoStageRef}>
+        <SpecialDayLayer specialDay={activeSpecialDay} pulse={specialDayPulse} />
         {activePhoto ? (
           <>
             <div
@@ -648,7 +648,6 @@ function SpecialDayLayer({ specialDay, pulse }: { specialDay?: SpecialDayConfig;
 
   return (
     <div className={`special-day-layer theme-${specialDay.theme}`} aria-hidden="true">
-      <div className="special-day-glow" />
       {effects.has("festone")
         ? <FestoneBanner label={specialDay.label} />
         : <div className="special-day-ribbon">{specialDay.label}</div>}
