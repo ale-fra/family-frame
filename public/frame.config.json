@@ -1,0 +1,19 @@
+{
+  "frameName": "Family Frame",
+  "photoManifestUrl": "/photos/manifest.json",
+  "weather": {
+    "latitude": 45.4642,
+    "longitude": 9.19,
+    "timezone": "Europe/Rome",
+    "label": "Milan",
+    "refreshMinutes": 30
+  },
+  "calendar": {
+    "icsUrl": "/calendar/family.ics",
+    "lookaheadDays": 14,
+    "importantKeywords": ["birthday", "anniversary", "doctor", "travel", "school", "family"]
+  },
+  "slideshow": {
+    "intervalSeconds": 18
+  }
+}
