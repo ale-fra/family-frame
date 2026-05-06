@@ -80,6 +80,8 @@ mkdir -p "$CHROMIUM_PROFILE"
 echo "Using Chromium profile: $CHROMIUM_PROFILE"
 echo "Chromium logs: $CHROMIUM_LOG"
 
+KIOSK_PATTERN="--user-data-dir=$CHROMIUM_PROFILE"
+
 CHROMIUM_ARGS=(
   --kiosk \
   --new-window \
@@ -100,9 +102,32 @@ CHROMIUM_ARGS=(
   "$APP_URL"
 )
 
-DISPLAY="$DISPLAY_VALUE" \
-XDG_CONFIG_DIRS=/etc/xdg \
-GTK_IM_MODULE=xim \
-QT_IM_MODULE=xim \
-XMODIFIERS=@im=none \
-"$CHROMIUM_BIN" "${CHROMIUM_ARGS[@]}" >"$CHROMIUM_LOG" 2>&1
+if pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; then
+  echo "Kiosk Chromium is already running; monitoring existing process."
+else
+  DISPLAY="$DISPLAY_VALUE" \
+  XDG_CONFIG_DIRS=/etc/xdg \
+  GTK_IM_MODULE=xim \
+  QT_IM_MODULE=xim \
+  XMODIFIERS=@im=none \
+  "$CHROMIUM_BIN" "${CHROMIUM_ARGS[@]}" >"$CHROMIUM_LOG" 2>&1 &
+fi
+
+for _ in {1..20}; do
+  if pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.5
+done
+
+if ! pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; then
+  echo "Chromium exited before a kiosk process could be observed." >&2
+  exit 1
+fi
+
+while pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; do
+  sleep 10
+done
+
+echo "Kiosk Chromium is no longer running." >&2
+exit 1
