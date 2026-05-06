@@ -114,11 +114,18 @@ of the browser config. For local runs, provide the source feed with:
 FRAME_CALENDAR_ICS_URL="https://calendar.google.com/calendar/ical/..." npm run server
 ```
 
-For the systemd service, keep the private URL in `~/.config/family-frame/server.env`:
+For the systemd service, keep the private URL in the project `.env` file:
+
+```bash
+cd /home/alessandro/Code/frame
+nano .env
+```
 
 ```bash
 FRAME_CALENDAR_ICS_URL=https://calendar.google.com/calendar/ical/...
 ```
+
+The `.env` file is intentionally ignored by git because the private iCal URL is an access token.
 
 For fully offline/static use, replace `public/calendar/family.ics` with an exported calendar and point
 `frame.config.json` `calendar.icsUrl` back to `/calendar/family.ics`.

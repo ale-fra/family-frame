@@ -18,6 +18,7 @@ type FrameConfig = {
   calendar: {
     icsUrl: string;
     lookaheadDays: number;
+    maxEvents: number;
     importantKeywords: string[];
   };
   slideshow: {
@@ -88,7 +89,8 @@ const defaultConfig: FrameConfig = {
   },
   calendar: {
     icsUrl: "/calendar/family.ics",
-    lookaheadDays: 14,
+    lookaheadDays: 3,
+    maxEvents: 6,
     importantKeywords: ["birthday", "anniversary", "doctor", "travel", "school", "family"]
   },
   slideshow: {
@@ -297,7 +299,7 @@ function FrameApp() {
           <div className="section-label">Important events</div>
           {events.length > 0 ? (
             <div className="event-list">
-              {events.slice(0, 6).map((event) => (
+              {events.slice(0, config.calendar.maxEvents).map((event) => (
                 <article className={event.important ? "event important" : "event"} key={event.id}>
                   <div className="event-date">{formatEventDate(event)}</div>
                   <div className="event-title">{event.title}</div>
@@ -540,6 +542,7 @@ function parseEvents(calendarText: string, lookaheadDays: number, keywords: stri
   const now = new Date();
   const until = new Date(now);
   until.setDate(until.getDate() + lookaheadDays);
+  until.setHours(23, 59, 59, 999);
   const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
 
   return component
