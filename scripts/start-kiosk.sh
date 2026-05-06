@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_URL="${FRAME_APP_URL:-http://127.0.0.1:5173}"
+APP_URL="${FRAME_APP_URL:-http://127.0.0.1:8787}"
 DISPLAY_VALUE="${DISPLAY:-:0}"
 PRIMARY_OUTPUT="${FRAME_PRIMARY_OUTPUT:-eDP-1}"
 FRAME_OUTPUT="${FRAME_DISPLAY_OUTPUT:-}"
 CHROMIUM_BIN="${FRAME_CHROMIUM_BIN:-chromium}"
 PHOTO_API_URL="${FRAME_PHOTO_API_URL:-http://127.0.0.1:8787/api/health}"
+CHROMIUM_LOG="${FRAME_CHROMIUM_LOG:-/tmp/family-frame-chromium.log}"
 
 if ! command -v "$CHROMIUM_BIN" >/dev/null 2>&1; then
   echo "Chromium was not found. Install Chromium or set up another kiosk browser." >&2
@@ -31,10 +32,6 @@ for _ in {1..30}; do
   fi
   sleep 1
 done
-
-if ! pgrep -f "vite --host 0.0.0.0" >/dev/null 2>&1; then
-  npm run dev >/tmp/family-frame-vite.log 2>&1 &
-fi
 
 for _ in {1..30}; do
   if curl -fsS "$APP_URL" >/dev/null 2>&1; then
@@ -81,13 +78,31 @@ fi
 
 mkdir -p "$CHROMIUM_PROFILE"
 echo "Using Chromium profile: $CHROMIUM_PROFILE"
+echo "Chromium logs: $CHROMIUM_LOG"
 
-DISPLAY="$DISPLAY_VALUE" "$CHROMIUM_BIN" \
+CHROMIUM_ARGS=(
   --kiosk \
   --new-window \
   --user-data-dir="$CHROMIUM_PROFILE" \
   --disable-infobars \
+  --disable-background-networking \
+  --disable-client-side-phishing-detection \
+  --disable-component-update \
+  --disable-default-apps \
+  --disable-domain-reliability \
+  --disable-features=MediaRouter,OptimizationHints,PushMessaging \
+  --disable-notifications \
+  --disable-sync \
+  --metrics-recording-only \
   --no-first-run \
   --check-for-update-interval=31536000 \
   "${WINDOW_ARGS[@]}" \
   "$APP_URL"
+)
+
+DISPLAY="$DISPLAY_VALUE" \
+XDG_CONFIG_DIRS=/etc/xdg \
+GTK_IM_MODULE=xim \
+QT_IM_MODULE=xim \
+XMODIFIERS=@im=none \
+"$CHROMIUM_BIN" "${CHROMIUM_ARGS[@]}" >"$CHROMIUM_LOG" 2>&1

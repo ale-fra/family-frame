@@ -1,0 +1,17 @@
+[Unit]
+Description=Family Frame Chromium kiosk
+After=family-frame-server.service graphical-session.target
+Wants=family-frame-server.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/alessandro/Code/frame
+ExecStart=/usr/bin/env bash scripts/start-frame-session.sh
+Restart=always
+RestartSec=5
+Environment=DISPLAY=:0
+Environment=FRAME_APP_URL=http://127.0.0.1:8787
+
+[Install]
+WantedBy=default.target

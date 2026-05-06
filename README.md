@@ -23,6 +23,16 @@ Open `http://127.0.0.1:5173` for the frame and `http://127.0.0.1:5173/admin` for
 From a phone on the same Wi-Fi, use the laptop's LAN IP with port `5173`, for example
 `http://192.168.1.20:5173/admin`.
 
+For the production-style local runtime, build once and run the single server:
+
+```bash
+npm run build
+npm run server
+```
+
+Then open `http://127.0.0.1:8787` for the frame and `http://127.0.0.1:8787/admin`
+from the phone. The kiosk script uses this `8787` runtime by default.
+
 ## Add Photos From A Phone
 
 The dynamic photo library is stored under `data/`, which is intentionally ignored by git.
@@ -50,7 +60,8 @@ Put images under `public/photos/` and list them in `public/photos/manifest.json`
 ## Telegram Photo Push
 
 Telegram is optional and is only an ingestion channel: received images are saved as pending photos
-and must be approved in `/admin`.
+and must be approved in `/admin`. Allowed Telegram users can also send `/refresh` to pull updates,
+rebuild, and restart the systemd services when autostart is installed.
 
 ```bash
 FRAME_TELEGRAM_BOT_TOKEN=123456:token \
@@ -60,6 +71,38 @@ npm run server
 
 If `FRAME_TELEGRAM_ALLOWED_CHAT_IDS` is empty, any chat that can message the bot can submit photos.
 Prefer setting the allowlist for normal use.
+
+## Autostart And Updates
+
+The frame can be installed as user-level systemd services:
+
+```bash
+bash scripts/install-autostart.sh
+```
+
+This installs:
+
+- `family-frame-server.service`: local app/API server on port `8787`, restarted on crash.
+- `family-frame-kiosk.service`: Chromium kiosk, restarted on crash.
+- `family-frame-update.timer`: periodic `git pull --ff-only` and rebuild every 30 minutes.
+
+The update script refuses to pull when the working tree is dirty:
+
+```bash
+npm run update
+```
+
+Remote refresh hooks:
+
+- LAN/admin: `POST http://FRAME_IP:8787/api/admin/refresh`, with `x-frame-admin-pin` if configured.
+- Telegram: send `/refresh` to the allowed bot chat.
+
+Chromium needs a graphical session. On this laptop, prefer enabling LXQt/SDDM autologin for the
+`alessandro` user. If user services also need to run before manual login, run:
+
+```bash
+sudo loginctl enable-linger alessandro
+```
 
 ## Calendar
 
@@ -83,8 +126,8 @@ npm run display
 npm run kiosk
 ```
 
-`npm run kiosk` starts the photo server, starts Vite, and launches Chromium on
-`http://127.0.0.1:5173` in kiosk mode.
+`npm run kiosk` starts the photo server if needed and launches Chromium on
+`http://127.0.0.1:8787` in kiosk mode.
 
 The kiosk launcher reads `xrandr` and opens Chromium on the first connected display that is not `eDP-1`. On this laptop, the ASUS MB169B+ appears as `DVI-I-1-1` at `1920x1080+1920+0`.
 

@@ -34,7 +34,10 @@ This is a local-first Vite + React + TypeScript app with a small local Node phot
 - `public/photos/manifest.json` lists local photo files.
 - `public/calendar/family.ics` is the default local calendar file.
 - `scripts/setup-display.sh` configures the external monitor with `xrandr`.
-- `scripts/start-kiosk.sh` starts Vite if needed and launches Chromium in kiosk mode on the external monitor.
+- `scripts/start-kiosk.sh` starts the photo/app server if needed and launches Chromium in kiosk mode on the external monitor.
+- `scripts/update-and-build.sh` runs safe `git pull --ff-only`, dependency install when needed, and build.
+- `scripts/remote-refresh.sh` is called by admin/Telegram refresh hooks and restarts systemd services when installed.
+- `systemd/user/` contains user-service templates for server, kiosk, and periodic updates.
 - `scripts/install-displaylink-ubuntu.sh` installs the Synaptics DisplayLink APT repo and `displaylink-driver`.
 
 The browser fetches static local assets, dynamic approved photos from the local photo service, and Open-Meteo directly.
@@ -50,7 +53,6 @@ If the photo service is unavailable, the app falls back to the static photo mani
 2. `npm run kiosk`
    - Runs `scripts/start-kiosk.sh`.
    - Starts `server/photo-server.mjs` if needed.
-   - Starts Vite on `0.0.0.0:5173` if no matching Vite process is running.
    - Reads `xrandr` geometry.
    - Launches Chromium with `--window-position` and `--window-size` matching the external monitor.
    - Uses a snap-friendly Chromium profile under `~/snap/chromium/common/family-frame-profile` when `/snap/bin/chromium` is detected.
@@ -66,6 +68,7 @@ If the photo service is unavailable, the app falls back to the static photo mani
    - Uploaded web and Telegram photos enter `pending`.
    - Only `approved` photos appear in the slideshow.
    - `hidden` and `trashed` photos remain in local metadata but are not shown.
+   - `POST /api/admin/refresh` and Telegram `/refresh` trigger safe pull/build/restart.
 
 ## Configuration
 
@@ -100,6 +103,7 @@ The current CSS intentionally prioritizes hiding LCD edge bleed over high-contra
 ```bash
 npm install
 npm run server
+npm run update
 npm run build
 npm run dev
 npm run display
@@ -116,7 +120,12 @@ FRAME_CHROMIUM_PROFILE=~/snap/chromium/common/family-frame-profile npm run kiosk
 FRAME_APP_URL=http://127.0.0.1:5173 npm run kiosk
 FRAME_ADMIN_PIN=1234 npm run server
 FRAME_TELEGRAM_BOT_TOKEN=123456:token FRAME_TELEGRAM_ALLOWED_CHAT_IDS=123456789 npm run server
+bash scripts/install-autostart.sh
 ```
+
+Autostart uses systemd user services. `loginctl show-user "$USER" -p Linger` currently reports
+`Linger=no`; for unattended boot, prefer graphical autologin for the frame user, and optionally run
+`sudo loginctl enable-linger alessandro` if services must start before manual login.
 
 ## Known Warnings
 

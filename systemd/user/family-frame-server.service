@@ -1,0 +1,16 @@
+[Unit]
+Description=Family Frame local photo and app server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/alessandro/Code/frame
+ExecStartPre=/usr/bin/env bash scripts/update-and-build.sh
+ExecStart=/usr/bin/env npm run server
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=default.target

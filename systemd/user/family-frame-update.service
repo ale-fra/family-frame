@@ -1,0 +1,10 @@
+[Unit]
+Description=Update Family Frame from GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alessandro/Code/frame
+ExecStart=/usr/bin/env bash scripts/update-and-build.sh
+ExecStartPost=/usr/bin/env systemctl --user try-restart family-frame-server.service family-frame-kiosk.service

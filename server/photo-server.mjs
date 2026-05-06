@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -10,6 +11,11 @@ const dataDir = process.env.FRAME_DATA_DIR ? path.resolve(process.env.FRAME_DATA
 const photoDir = path.join(dataDir, "photos");
 const trashDir = path.join(dataDir, "trash");
 const dbPath = path.join(dataDir, "photos.json");
+const distDir = path.join(rootDir, "dist");
+const indexPath = path.join(distDir, "index.html");
+const refreshScript = process.env.FRAME_REFRESH_SCRIPT
+  ? path.resolve(process.env.FRAME_REFRESH_SCRIPT)
+  : path.join(rootDir, "scripts", "remote-refresh.sh");
 const port = Number(process.env.FRAME_PHOTO_SERVER_PORT || 8787);
 const adminPin = process.env.FRAME_ADMIN_PIN || "";
 const telegramToken = process.env.FRAME_TELEGRAM_BOT_TOKEN || "";
@@ -38,6 +44,7 @@ const upload = multer({
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use("/media/photos", express.static(photoDir, { fallthrough: false }));
+app.use(express.static(distDir, { fallthrough: true }));
 
 await ensureStorage();
 
@@ -109,6 +116,27 @@ app.delete("/api/admin/photos/:id", requireAdmin, async (request, response) => {
   photo.updatedAt = new Date().toISOString();
   await writeDb(db);
   response.json({ photo });
+});
+
+app.post("/api/admin/refresh", requireAdmin, async (_request, response) => {
+  const started = await triggerRefresh("admin-api");
+  response.status(started ? 202 : 409).json({
+    accepted: started,
+    message: started ? "Refresh started" : "Refresh already running"
+  });
+});
+
+app.use((request, response, next) => {
+  if (request.method !== "GET" || request.path.startsWith("/api/") || request.path.startsWith("/media/")) {
+    next();
+    return;
+  }
+
+  response.sendFile(indexPath, (error) => {
+    if (error) {
+      response.status(503).send("Family Frame has not been built yet. Run npm run build.");
+    }
+  });
 });
 
 app.listen(port, "0.0.0.0", () => {
@@ -233,6 +261,15 @@ async function handleTelegramMessage(message) {
   const chatId = String(message.chat.id);
   if (allowedTelegramChats.size > 0 && !allowedTelegramChats.has(chatId)) return;
 
+  if (typeof message.text === "string" && message.text.trim().startsWith("/refresh")) {
+    const started = await triggerRefresh(`telegram:${chatId}`);
+    await telegramApi("sendMessage", new URLSearchParams({
+      chat_id: chatId,
+      text: started ? "Refresh avviato." : "Refresh gia in corso."
+    }));
+    return;
+  }
+
   const photoSizes = Array.isArray(message.photo) ? message.photo : [];
   const document = message.document;
   const photoFile = photoSizes.at(-1);
@@ -266,6 +303,30 @@ async function telegramApi(method, params) {
   const response = await fetch(`https://api.telegram.org/bot${telegramToken}/${method}?${params.toString()}`);
   if (!response.ok) throw new Error(`Telegram ${method} failed: ${response.status}`);
   return response.json();
+}
+
+let refreshRunning = false;
+
+async function triggerRefresh(source) {
+  if (refreshRunning) return false;
+  refreshRunning = true;
+
+  const child = spawn("bash", [refreshScript], {
+    cwd: rootDir,
+    detached: true,
+    env: {
+      ...process.env,
+      FRAME_REFRESH_SOURCE: source
+    },
+    stdio: "ignore"
+  });
+  child.unref();
+
+  setTimeout(() => {
+    refreshRunning = false;
+  }, 60_000);
+
+  return true;
 }
 
 function mimeTypeFromTelegramPath(filePath) {
