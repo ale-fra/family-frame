@@ -11,3 +11,4 @@ calendar-sources.json
 *.tsbuildinfo
 .DS_Store
 *.log
+.superpowers/
