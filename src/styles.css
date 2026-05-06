@@ -435,56 +435,45 @@ body:has(.admin-shell) {
 
 .photo-frame-flowers {
   position: absolute;
-  inset: -18px;
-  border: 1px solid rgba(172, 120, 142, 0.18);
-  border-radius: 8px;
-  opacity: 0;
-  animation: photo-frame-flowers-in 620ms ease-out 180ms both;
+  inset: -14px;
+  pointer-events: none;
 }
 
-.photo-frame-flowers span {
-  --flower-index: 0;
+.flower-corner {
   position: absolute;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: rgba(255, 253, 247, 0.72);
-  color: #bd7898;
-  font-size: 22px;
-  line-height: 1;
-  box-shadow: 0 6px 16px rgba(79, 67, 49, 0.1);
-  animation: flower-frame-breathe 3.8s ease-in-out infinite;
-  animation-delay: calc((var(--flower-index) % 6) * 180ms);
+  width: 96px;
+  height: 96px;
 }
 
-.photo-frame-flowers span:nth-child(-n + 7) {
-  top: -14px;
-  left: calc(8% + (var(--flower-index) - 1) * 13.5%);
+.flower-corner-tl {
+  top: 0;
+  left: 0;
 }
 
-.photo-frame-flowers span:nth-child(n + 8):nth-child(-n + 14) {
-  bottom: -14px;
-  left: calc(8% + (var(--flower-index) - 8) * 13.5%);
+.flower-corner-tr {
+  top: 0;
+  right: 0;
 }
 
-.photo-frame-flowers span:nth-child(n + 15):nth-child(-n + 18) {
-  top: calc(18% + (var(--flower-index) - 15) * 21%);
-  left: -14px;
+.flower-corner-bl {
+  bottom: 0;
+  left: 0;
 }
 
-.photo-frame-flowers span:nth-child(n + 19) {
-  top: calc(18% + (var(--flower-index) - 19) * 21%);
-  right: -14px;
+.flower-corner-br {
+  bottom: 0;
+  right: 0;
 }
 
-.photo-frame-flowers span:nth-child(3n) {
-  color: #d2a046;
+.flower-el {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  animation: flower-breathe 4.5s ease-in-out infinite;
+  line-height: 0;
 }
 
-.photo-frame-flowers span:nth-child(3n + 1) {
-  color: #7ca66f;
+.flower-heart {
+  animation: heart-pulse 2.4s ease-in-out infinite;
 }
 
 .star-shapes span {
@@ -617,24 +606,25 @@ body:has(.admin-shell) {
   }
 }
 
-@keyframes photo-frame-flowers-in {
-  from {
-    opacity: 0;
-    transform: scale(0.992);
+@keyframes flower-breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.95) rotate(-2deg);
   }
-  to {
-    opacity: 0.92;
-    transform: scale(1);
+  50% {
+    transform: translate(-50%, -50%) scale(1.04) rotate(2deg);
   }
 }
 
-@keyframes flower-frame-breathe {
+@keyframes heart-pulse {
   0%,
   100% {
-    transform: scale(0.92) rotate(-3deg);
+    transform: translate(-50%, -50%) scale(0.95);
+    opacity: 0.85;
   }
   50% {
-    transform: scale(1.04) rotate(3deg);
+    transform: translate(-50%, -50%) scale(1.12);
+    opacity: 1;
   }
 }
 
