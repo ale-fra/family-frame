@@ -29,7 +29,11 @@ git fetch origin "$BRANCH"
 git pull --ff-only origin "$BRANCH"
 AFTER="$(git rev-parse HEAD)"
 
-if [[ ! -d node_modules ]] || git diff --name-only "$BEFORE" "$AFTER" -- package.json package-lock.json | grep -q .; then
+PACKAGE_JSON_CHANGED=$(git diff --name-only "$BEFORE" "$AFTER" -- package.json | grep -q . && echo "1" || echo "0")
+PACKAGE_LOCK_CHANGED=$(git diff --name-only "$BEFORE" "$AFTER" -- package-lock.json | grep -q . && echo "1" || echo "0")
+
+if [[ ! -d node_modules ]] || [[ "$PACKAGE_JSON_CHANGED" == "1" ]] || [[ "$PACKAGE_LOCK_CHANGED" == "1" ]]; then
+  echo "[$(date --iso-8601=seconds)] Installing dependencies (package.json changed: $PACKAGE_JSON_CHANGED, package-lock.json changed: $PACKAGE_LOCK_CHANGED)..."
   npm ci
 fi
 
