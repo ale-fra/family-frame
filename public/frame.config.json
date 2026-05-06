@@ -12,7 +12,7 @@
   },
   "calendar": {
     "icsUrl": "/api/calendar.ics",
-    "lookaheadDays": 3,
+    "lookaheadDays": 14,
     "maxEvents": 6,
     "importantKeywords": ["birthday", "anniversary", "doctor", "travel", "school", "family"]
   },

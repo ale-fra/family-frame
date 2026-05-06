@@ -89,7 +89,7 @@ const defaultConfig: FrameConfig = {
   },
   calendar: {
     icsUrl: "/calendar/family.ics",
-    lookaheadDays: 3,
+    lookaheadDays: 14,
     maxEvents: 6,
     importantKeywords: ["birthday", "anniversary", "doctor", "travel", "school", "family"]
   },
