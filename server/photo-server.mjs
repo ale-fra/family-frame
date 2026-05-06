@@ -141,12 +141,14 @@ app.get("/api/admin/settings", requireAdmin, async (_request, response) => {
 });
 
 app.put("/api/admin/settings", requireAdmin, async (request, response) => {
-  const settings = normalizeSettings(request.body);
-  if (!settings) {
+  const normalizedSettings = normalizeSettings(request.body);
+  if (!normalizedSettings) {
     response.status(400).json({ error: "Unsupported settings payload" });
     return;
   }
 
+  const currentSettings = await readSettings();
+  const settings = mergeSettings(currentSettings, normalizedSettings);
   await writeSettings(settings);
   response.json(settings);
 });
@@ -349,7 +351,30 @@ function normalizeSettings(payload) {
     };
   }
 
+  const disabledSpecialDayIds = payload.specialDays?.disabledIds;
+  if (disabledSpecialDayIds !== undefined) {
+    if (!Array.isArray(disabledSpecialDayIds)) return null;
+    settings.specialDays = {
+      disabledIds: normalizeStringList(disabledSpecialDayIds)
+    };
+  }
+
   return settings;
+}
+
+function mergeSettings(currentSettings, nextSettings) {
+  return {
+    ...currentSettings,
+    ...nextSettings,
+    calendar: {
+      ...currentSettings.calendar,
+      ...nextSettings.calendar
+    },
+    specialDays: {
+      ...currentSettings.specialDays,
+      ...nextSettings.specialDays
+    }
+  };
 }
 
 function normalizeStringList(values) {
