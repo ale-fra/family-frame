@@ -153,14 +153,65 @@ body:has(.admin-shell) {
 }
 
 .weather-icon {
-  display: inline-grid;
-  place-items: center;
   width: 86px;
   height: 86px;
-  border-radius: 50%;
-  color: #fbf7ee;
-  background: #8a9a7b;
-  font-size: 46px;
+  flex: 0 0 86px;
+  overflow: visible;
+}
+
+.forecast-icon {
+  justify-self: center;
+  width: 36px;
+  height: 36px;
+  overflow: visible;
+}
+
+.weather-sun {
+  fill: #f5b949;
+  filter: drop-shadow(0 4px 8px rgba(176, 117, 30, 0.2));
+}
+
+.weather-sun-soft {
+  fill: #f6d47c;
+}
+
+.weather-ray,
+.weather-line,
+.weather-drop,
+.weather-snow {
+  fill: none;
+  stroke: #b7812e;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 6;
+}
+
+.weather-cloud {
+  fill: #f8faf6;
+  stroke: #8fa69d;
+  stroke-linejoin: round;
+  stroke-width: 5;
+  filter: drop-shadow(0 5px 9px rgba(84, 101, 94, 0.14));
+}
+
+.weather-line {
+  stroke: #7f9992;
+}
+
+.weather-drop {
+  stroke: #518fb8;
+}
+
+.weather-snow {
+  stroke: #739fc6;
+  stroke-width: 4.5;
+}
+
+.weather-bolt {
+  fill: #f1b633;
+  stroke: #a87018;
+  stroke-linejoin: round;
+  stroke-width: 4;
 }
 
 .weather-detail {

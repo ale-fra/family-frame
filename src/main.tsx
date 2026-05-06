@@ -7,10 +7,12 @@ type FrameConfig = {
   frameName: string;
   photoManifestUrl: string;
   weather: {
+    city?: string;
     latitude: number;
-    longitude: string | number;
+    longitude: number;
     timezone: string;
     label: string;
+    showLocationLabel?: boolean;
     refreshMinutes: number;
   };
   calendar: {
@@ -53,6 +55,7 @@ type WeatherState = {
     code: number;
     windSpeed: number;
   };
+  locationLabel?: string;
   forecast: Array<{
     date: string;
     min: number;
@@ -75,10 +78,12 @@ const defaultConfig: FrameConfig = {
   frameName: "Family Frame",
   photoManifestUrl: "/photos/manifest.json",
   weather: {
-    latitude: 45.4642,
-    longitude: 9.19,
+    city: "Portuense, Rome",
+    latitude: 41.8667,
+    longitude: 12.4569,
     timezone: "Europe/Rome",
-    label: "Milan",
+    label: "Portuense, Roma",
+    showLocationLabel: false,
     refreshMinutes: 30
   },
   calendar: {
@@ -118,7 +123,7 @@ function FrameApp() {
   React.useEffect(() => {
     fetch("/frame.config.json", { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : defaultConfig))
-      .then((loadedConfig: FrameConfig) => setConfig({ ...defaultConfig, ...loadedConfig }))
+      .then((loadedConfig: Partial<FrameConfig>) => setConfig(mergeConfig(loadedConfig)))
       .catch(() => setConfig(defaultConfig));
   }, []);
 
@@ -178,10 +183,13 @@ function FrameApp() {
 
     async function loadWeather() {
       try {
+        const location = await resolveWeatherLocation(config.weather);
+        if (cancelled) return;
+
         const params = new URLSearchParams({
-          latitude: String(config.weather.latitude),
-          longitude: String(config.weather.longitude),
-          timezone: config.weather.timezone,
+          latitude: String(location.latitude),
+          longitude: String(location.longitude),
+          timezone: location.timezone,
           current: "temperature_2m,apparent_temperature,weather_code,wind_speed_10m",
           daily: "weather_code,temperature_2m_max,temperature_2m_min",
           forecast_days: "4"
@@ -191,6 +199,7 @@ function FrameApp() {
         const payload = await response.json();
         if (cancelled) return;
         setWeather({
+          locationLabel: location.label,
           current: {
             temperature: payload.current.temperature_2m,
             apparentTemperature: payload.current.apparent_temperature,
@@ -206,7 +215,7 @@ function FrameApp() {
         });
       } catch {
         if (!cancelled) {
-          setWeather((current) => ({ ...current, error: "Weather unavailable" }));
+          setWeather((current) => ({ ...current, error: "Meteo non disponibile" }));
         }
       }
     }
@@ -256,11 +265,13 @@ function FrameApp() {
         </header>
 
         <section className="weather-block">
-          <div className="section-label">{config.weather.label}</div>
+          {config.weather.showLocationLabel !== false ? (
+            <div className="section-label">{weather.locationLabel || config.weather.label}</div>
+          ) : null}
           {weather.current ? (
             <>
               <div className="current-weather">
-                <span className="weather-icon">{weatherIcon(weather.current.code)}</span>
+                <WeatherIcon code={weather.current.code} className="weather-icon" />
                 <span>{Math.round(weather.current.temperature)}°</span>
               </div>
               <div className="weather-detail">
@@ -270,6 +281,7 @@ function FrameApp() {
                 {weather.forecast.map((day) => (
                   <div className="forecast-day" key={day.date}>
                     <span>{formatDay(day.date)}</span>
+                    <WeatherIcon code={day.code} className="forecast-icon" />
                     <strong>{Math.round(day.max)}°</strong>
                     <small>{Math.round(day.min)}°</small>
                   </div>
@@ -553,14 +565,141 @@ function parseEvents(calendarText: string, lookaheadDays: number, keywords: stri
     .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
 }
 
-function weatherIcon(code: number) {
-  if (code === 0) return "☀";
-  if ([1, 2, 3].includes(code)) return "◐";
-  if ([45, 48].includes(code)) return "≋";
-  if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) return "☂";
-  if ([71, 73, 75, 77, 85, 86].includes(code)) return "❄";
-  if ([95, 96, 99].includes(code)) return "⚡";
-  return "•";
+function mergeConfig(loadedConfig: Partial<FrameConfig>): FrameConfig {
+  return {
+    ...defaultConfig,
+    ...loadedConfig,
+    weather: {
+      ...defaultConfig.weather,
+      ...loadedConfig.weather
+    },
+    calendar: {
+      ...defaultConfig.calendar,
+      ...loadedConfig.calendar
+    },
+    slideshow: {
+      ...defaultConfig.slideshow,
+      ...loadedConfig.slideshow
+    }
+  };
+}
+
+type WeatherLocation = {
+  latitude: number;
+  longitude: number;
+  timezone: string;
+  label: string;
+};
+
+async function resolveWeatherLocation(config: FrameConfig["weather"]): Promise<WeatherLocation> {
+  const city = config.city?.trim();
+  const fallback = {
+    latitude: config.latitude,
+    longitude: config.longitude,
+    timezone: config.timezone,
+    label: config.label || city || "Weather"
+  };
+
+  if (!city) return fallback;
+
+  const params = new URLSearchParams({
+    name: city,
+    count: "1",
+    language: "en",
+    format: "json"
+  });
+  const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`);
+  if (!response.ok) return fallback;
+
+  const payload = await response.json() as {
+    results?: Array<{
+      name: string;
+      country_code?: string;
+      latitude: number;
+      longitude: number;
+      timezone?: string;
+    }>;
+  };
+  const match = payload.results?.[0];
+  if (!match) return fallback;
+
+  return {
+    latitude: match.latitude,
+    longitude: match.longitude,
+    timezone: match.timezone || config.timezone,
+    label: match.country_code ? `${match.name}, ${match.country_code}` : match.name
+  };
+}
+
+function WeatherIcon({ code, className }: { code: number; className: string }) {
+  const kind = weatherKind(code);
+
+  return (
+    <svg className={className} viewBox="0 0 96 96" role="img" aria-label={weatherDescription(kind)}>
+      {kind === "sun" ? (
+        <>
+          <circle className="weather-sun" cx="48" cy="48" r="18" />
+          <path className="weather-ray" d="M48 12v12M48 72v12M12 48h12M72 48h12M22 22l8.5 8.5M65.5 65.5 74 74M74 22l-8.5 8.5M30.5 65.5 22 74" />
+        </>
+      ) : null}
+      {kind === "cloud" ? (
+        <>
+          <circle className="weather-sun weather-sun-soft" cx="35" cy="35" r="15" />
+          <CloudShape />
+        </>
+      ) : null}
+      {kind === "fog" ? (
+        <>
+          <CloudShape />
+          <path className="weather-line" d="M20 62h56M14 73h48M34 84h42" />
+        </>
+      ) : null}
+      {kind === "rain" ? (
+        <>
+          <CloudShape />
+          <path className="weather-drop" d="M31 67l-5 11M48 68l-5 12M65 67l-5 11" />
+        </>
+      ) : null}
+      {kind === "snow" ? (
+        <>
+          <CloudShape />
+          <path className="weather-snow" d="M31 71v12M25 77h12M27 73l8 8M35 73l-8 8M58 70v12M52 76h12M54 72l8 8M62 72l-8 8" />
+        </>
+      ) : null}
+      {kind === "storm" ? (
+        <>
+          <CloudShape />
+          <path className="weather-bolt" d="M49 57 38 77h12l-5 15 17-25H50l7-10z" />
+        </>
+      ) : null}
+    </svg>
+  );
+}
+
+function CloudShape() {
+  return <path className="weather-cloud" d="M27 60c-8 0-14-5.7-14-13 0-6.7 5-12.1 11.4-12.9C27.6 26.3 35.2 21 44 21c10.4 0 19.1 7.1 21.6 16.7H67c8.8 0 16 6.7 16 15S75.8 68 67 68H28c-.3 0-.7 0-1-.1z" />;
+}
+
+function weatherKind(code: number) {
+  if (code === 0) return "sun";
+  if ([1, 2, 3].includes(code)) return "cloud";
+  if ([45, 48].includes(code)) return "fog";
+  if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) return "rain";
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return "snow";
+  if ([95, 96, 99].includes(code)) return "storm";
+  return "cloud";
+}
+
+function weatherDescription(kind: ReturnType<typeof weatherKind>) {
+  const labels = {
+    sun: "Clear sky",
+    cloud: "Cloudy",
+    fog: "Fog",
+    rain: "Rain",
+    snow: "Snow",
+    storm: "Thunderstorm"
+  };
+  return labels[kind];
 }
 
 function formatTime(date: Date) {

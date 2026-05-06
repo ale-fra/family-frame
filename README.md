@@ -108,6 +108,28 @@ sudo loginctl enable-linger alessandro
 
 Replace `public/calendar/family.ics` with an exported family calendar, or change `frame.config.json` to point `calendar.icsUrl` at another `.ics` URL.
 
+## Weather
+
+Weather uses Open-Meteo. Set `weather.city` in `public/frame.config.json` to change location by city name:
+
+```json
+{
+  "weather": {
+    "city": "Portuense, Rome",
+    "latitude": 41.8667,
+    "longitude": 12.4569,
+    "timezone": "Europe/Rome",
+    "label": "Portuense, Roma",
+    "showLocationLabel": false,
+    "refreshMinutes": 30
+  }
+}
+```
+
+When `city` is set, the app resolves coordinates and timezone automatically. `latitude`,
+`longitude`, `timezone`, and `label` remain as the offline fallback if geocoding is unavailable.
+Set `showLocationLabel` to `false` to hide the fixed location name from the frame.
+
 ## DisplayLink Monitor Setup
 
 The monitor is currently detected by USB, but Ubuntu does not expose it as an `xrandr` output until the DisplayLink driver is installed.

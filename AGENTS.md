@@ -77,6 +77,8 @@ Edit `public/frame.config.json` for runtime behavior:
 - `frameName`: empty-state title.
 - `photoManifestUrl`: static JSON photo manifest URL.
 - `weather.latitude`, `weather.longitude`, `weather.timezone`, `weather.label`: Open-Meteo location.
+- `weather.city`: city name resolved through Open-Meteo geocoding; when set, it overrides manual coordinates.
+- `weather.showLocationLabel`: whether to show the weather location name on the frame.
 - `weather.refreshMinutes`: browser refresh interval.
 - `calendar.icsUrl`: local or remote `.ics` URL.
 - `calendar.lookaheadDays`: upcoming event window.

@@ -2,10 +2,12 @@
   "frameName": "Family Frame",
   "photoManifestUrl": "/photos/manifest.json",
   "weather": {
-    "latitude": 45.4642,
-    "longitude": 9.19,
+    "city": "Portuense, Rome",
+    "latitude": 41.8667,
+    "longitude": 12.4569,
     "timezone": "Europe/Rome",
-    "label": "Milan",
+    "label": "Portuense, Roma",
+    "showLocationLabel": false,
     "refreshMinutes": 30
   },
   "calendar": {
