@@ -128,6 +128,13 @@ npm run kiosk
 
 `npm run kiosk` starts the photo server if needed and launches Chromium on
 `http://127.0.0.1:8787` in kiosk mode.
+It also disables X11 screen blanking, DPMS standby, and the classic X screensaver so the frame
+does not disappear after the desktop idle timeout. To apply that manually in an already running
+session:
+
+```bash
+npm run awake
+```
 
 The kiosk launcher reads `xrandr` and opens Chromium on the first connected display that is not `eDP-1`. On this laptop, the ASUS MB169B+ appears as `DVI-I-1-1` at `1920x1080+1920+0`.
 
