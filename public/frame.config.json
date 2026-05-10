@@ -14,7 +14,7 @@
     "icsUrl": "/api/calendar.ics",
     "sourcesUrl": "/api/calendar-sources.json",
     "lookaheadDays": 12,
-    "maxEvents": 6,
+    "maxEvents": 5,
     "refreshMinutes": 15,
     "importantKeywords": ["compleanno", "anniversario", "colloquio", "riunione scuola", "ricevimento", "recita", "saggio", "gita", "scadenza", "pagamento", "bolletta", "visita", "dottore", "medico", "pediatra", "dentista", "vaccino", "esame", "analisi", "ospedale", "partenza", "viaggio", "vacanza", "londra", "milano", "volo", "treno", "prenotazione", "documenti", "passaporto", "carta identità", "birthday", "anniversary", "parent teacher", "doctor", "dentist", "vaccine", "exam", "deadline", "travel", "flight"]
   },
