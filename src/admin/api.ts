@@ -1,4 +1,11 @@
-import type { AdminPhoto, CalendarSource, FrameConfig, FrameSettings, SpecialDayConfig } from "@/lib/types";
+import type {
+  AdminPhoto,
+  CalendarSource,
+  FrameConfig,
+  FrameSettings,
+  NightDisplaySettings,
+  SpecialDayConfig
+} from "@/lib/types";
 import { defaultConfig, mergeConfig } from "@/lib/config";
 
 export class UnauthorizedError extends Error {
@@ -74,8 +81,16 @@ export type AdminSettingsBundle = {
   baseConfig: FrameConfig;
   calendarSources: CalendarSource[];
   importantKeywords: string[];
+  nightDisplay: NightDisplaySettings;
   specialDayEvents: SpecialDayConfig[];
   disabledSpecialDayIds: string[];
+};
+
+export const defaultNightDisplaySettings: NightDisplaySettings = {
+  enabled: false,
+  offTime: "23:00",
+  onTime: "07:00",
+  output: "DVI-I-1-1"
 };
 
 export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundle> {
@@ -92,6 +107,7 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
       calendarSources: settings.calendar?.sources || baseConfig.calendar.sources || [],
       importantKeywords:
         settings.calendar?.importantKeywords || baseConfig.calendar.importantKeywords,
+      nightDisplay: settings.display?.nightMode || defaultNightDisplaySettings,
       specialDayEvents: settings.specialDays?.events || baseConfig.specialDays.events,
       disabledSpecialDayIds: settings.specialDays?.disabledIds || []
     };
@@ -101,6 +117,7 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
       baseConfig,
       calendarSources: baseConfig.calendar.sources || [],
       importantKeywords: baseConfig.calendar.importantKeywords,
+      nightDisplay: defaultNightDisplaySettings,
       specialDayEvents: baseConfig.specialDays.events,
       disabledSpecialDayIds: []
     };
@@ -112,6 +129,7 @@ export async function saveAdminSettings(
   payload: {
     calendarSources: CalendarSource[];
     importantKeywords: string[];
+    nightDisplay?: NightDisplaySettings;
     disabledSpecialDayIds: string[];
     specialDayEvents: SpecialDayConfig[];
   }
@@ -129,10 +147,23 @@ export async function saveAdminSettings(
         specialDays: {
           disabledIds: payload.disabledSpecialDayIds,
           events: payload.specialDayEvents
-        }
+        },
+        ...(payload.nightDisplay ? { display: { nightMode: payload.nightDisplay } } : {})
       })
     },
     pin
   );
   return (await response.json()) as FrameSettings;
+}
+
+export async function setDisplayPower(pin: string, action: "on" | "off", output: string) {
+  await request(
+    `/api/admin/display/${action}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ output })
+    },
+    pin
+  );
 }

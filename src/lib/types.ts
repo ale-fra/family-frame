@@ -37,10 +37,20 @@ export type FrameSettings = {
     sources?: CalendarSource[];
     importantKeywords?: string[];
   };
+  display?: {
+    nightMode?: NightDisplaySettings;
+  };
   specialDays?: {
     disabledIds?: string[];
     events?: SpecialDayConfig[];
   };
+};
+
+export type NightDisplaySettings = {
+  enabled: boolean;
+  offTime: string;
+  onTime: string;
+  output: string;
 };
 
 export type SpecialDayEffect =

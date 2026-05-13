@@ -21,6 +21,9 @@ const indexPath = path.join(distDir, "index.html");
 const refreshScript = process.env.FRAME_REFRESH_SCRIPT
   ? path.resolve(process.env.FRAME_REFRESH_SCRIPT)
   : path.join(rootDir, "scripts", "remote-refresh.sh");
+const nightDisplayScript = process.env.FRAME_NIGHT_DISPLAY_SCRIPT
+  ? path.resolve(process.env.FRAME_NIGHT_DISPLAY_SCRIPT)
+  : path.join(rootDir, "scripts", "install-night-display.sh");
 const port = Number(process.env.FRAME_PHOTO_SERVER_PORT || 8787);
 const adminPin = process.env.FRAME_ADMIN_PIN || "";
 const telegramToken = process.env.FRAME_TELEGRAM_BOT_TOKEN || "";
@@ -150,6 +153,15 @@ app.put("/api/admin/settings", requireAdmin, async (request, response) => {
 
   const currentSettings = await readSettings();
   const settings = mergeSettings(currentSettings, normalizedSettings);
+  if (normalizedSettings.display?.nightMode) {
+    try {
+      await applyNightDisplaySettings(settings.display.nightMode);
+    } catch (error) {
+      console.error("Night display timer update failed:", error.message);
+      response.status(500).json({ error: "Night display timers could not be updated" });
+      return;
+    }
+  }
   await writeSettings(settings);
   response.json(settings);
 });
@@ -216,6 +228,25 @@ app.post("/api/admin/refresh", requireAdmin, async (_request, response) => {
     accepted: started,
     message: started ? "Refresh started" : "Refresh already running"
   });
+});
+
+app.post("/api/admin/display/:action", requireAdmin, async (request, response) => {
+  const action = request.params.action;
+  if (action !== "on" && action !== "off") {
+    response.status(400).json({ error: "Unsupported display action" });
+    return;
+  }
+
+  try {
+    const settings = await readSettings();
+    const requestedOutput = typeof request.body?.output === "string" ? request.body.output.trim() : "";
+    const output = requestedOutput || settings.display?.nightMode?.output || "DVI-I-1-1";
+    await setDisplayPower(action, output);
+    response.json({ ok: true, action, output });
+  } catch (error) {
+    console.error(`Display ${action} failed:`, error.message);
+    response.status(500).json({ error: `Display could not be turned ${action}` });
+  }
 });
 
 app.use((request, response, next) => {
@@ -405,6 +436,13 @@ function normalizeSettings(payload) {
     if (normalizedEvents) settings.specialDays.events = normalizedEvents;
   }
 
+  const nightMode = payload.display?.nightMode;
+  if (nightMode !== undefined) {
+    const normalizedNightMode = normalizeNightDisplaySettings(nightMode);
+    if (!normalizedNightMode) return null;
+    settings.display = { nightMode: normalizedNightMode };
+  }
+
   return settings;
 }
 
@@ -415,6 +453,10 @@ function mergeSettings(currentSettings, nextSettings) {
     calendar: {
       ...currentSettings.calendar,
       ...nextSettings.calendar
+    },
+    display: {
+      ...currentSettings.display,
+      ...nextSettings.display
     },
     specialDays: {
       ...currentSettings.specialDays,
@@ -458,6 +500,31 @@ function normalizeCalendarSources(sources) {
   }
 
   return normalized;
+}
+
+function normalizeNightDisplaySettings(settings) {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return null;
+  const enabled = settings.enabled === true;
+  const offTime = normalizeClockTime(settings.offTime);
+  const onTime = normalizeClockTime(settings.onTime);
+  const output = typeof settings.output === "string" && settings.output.trim()
+    ? settings.output.trim()
+    : "DVI-I-1-1";
+
+  if (!offTime || !onTime) return null;
+
+  return {
+    enabled,
+    offTime,
+    onTime,
+    output
+  };
+}
+
+function normalizeClockTime(value) {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  return /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(trimmed) ? trimmed : "";
 }
 
 function normalizeSpecialDayEvents(events) {
@@ -862,6 +929,75 @@ async function telegramApi(method, params) {
 }
 
 let refreshRunning = false;
+
+async function applyNightDisplaySettings(settings) {
+  await new Promise((resolve, reject) => {
+    let stderr = "";
+    const child = spawn("bash", [nightDisplayScript], {
+      cwd: rootDir,
+      env: {
+        ...process.env,
+        FRAME_NIGHT_DISPLAY_ENABLED: settings.enabled ? "1" : "0",
+        FRAME_NIGHT_OFF_TIME: settings.offTime,
+        FRAME_MORNING_ON_TIME: settings.onTime,
+        FRAME_DISPLAY_OUTPUT: settings.output,
+        FRAME_X11_DISPLAY: process.env.DISPLAY || ":0"
+      },
+      stdio: ["ignore", "ignore", "pipe"]
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(stderr.trim() || `install-night-display.sh exited with ${code}`));
+    });
+  });
+}
+
+async function setDisplayPower(action, output) {
+  if (action === "on") {
+    await runCommand("systemctl", ["--user", "restart", "family-frame-kiosk.service"]);
+    return;
+  }
+
+  await runCommand("systemctl", ["--user", "stop", "family-frame-kiosk.service"]);
+  await runCommand("xrandr", ["--output", output, "--off"], {
+    DISPLAY: process.env.DISPLAY || ":0",
+    XAUTHORITY: process.env.XAUTHORITY || path.join(process.env.HOME || "", ".Xauthority")
+  });
+}
+
+async function runCommand(command, args, extraEnv = {}) {
+  await new Promise((resolve, reject) => {
+    let stderr = "";
+    const child = spawn(command, args, {
+      cwd: rootDir,
+      env: {
+        ...process.env,
+        ...extraEnv
+      },
+      stdio: ["ignore", "ignore", "pipe"]
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(stderr.trim() || `${command} exited with ${code}`));
+    });
+  });
+}
 
 async function triggerRefresh(source) {
   if (refreshRunning) return false;

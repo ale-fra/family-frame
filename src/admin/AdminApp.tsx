@@ -1,6 +1,13 @@
 import * as React from "react";
 import "@/admin.css";
-import type { AdminPhoto, CalendarSource, PhotoStatus, SpecialDayConfig, SpecialDaySchedule } from "@/lib/types";
+import type {
+  AdminPhoto,
+  CalendarSource,
+  NightDisplaySettings,
+  PhotoStatus,
+  SpecialDayConfig,
+  SpecialDaySchedule
+} from "@/lib/types";
 import { defaultConfig } from "@/lib/config";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,10 +19,12 @@ import { SettingsSection } from "./SettingsSection";
 import { countPhotos, type AdminSection } from "./labels";
 import {
   UnauthorizedError,
+  defaultNightDisplaySettings,
   loadAdminSettings,
   loadPhotos,
   parseKeywordEditorValue,
   saveAdminSettings,
+  setDisplayPower,
   updatePhotoStatus,
   uploadPhotos
 } from "./api";
@@ -38,6 +47,7 @@ export default function AdminApp() {
     defaultConfig.specialDays.events
   );
   const [disabledSpecialDayIds, setDisabledSpecialDayIds] = React.useState<string[]>([]);
+  const [nightDisplay, setNightDisplay] = React.useState<NightDisplaySettings>(defaultNightDisplaySettings);
 
   const handleUnauthorized = React.useCallback(() => {
     setNeedsPin(true);
@@ -71,6 +81,7 @@ export default function AdminApp() {
       setSpecialDayEvents(bundle.specialDayEvents);
       setKeywordsText(bundle.importantKeywords.join("\n"));
       setDisabledSpecialDayIds(bundle.disabledSpecialDayIds);
+      setNightDisplay(bundle.nightDisplay);
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         handleUnauthorized();
@@ -81,6 +92,7 @@ export default function AdminApp() {
       setKeywordsText(defaultConfig.calendar.importantKeywords.join("\n"));
       setSpecialDayEvents(defaultConfig.specialDays.events);
       setDisabledSpecialDayIds([]);
+      setNightDisplay(defaultNightDisplaySettings);
     }
   }, [pin, handleUnauthorized]);
 
@@ -159,7 +171,8 @@ export default function AdminApp() {
     nextCalendarSources: CalendarSource[],
     nextKeywords: string[],
     nextEvents: SpecialDayConfig[],
-    successMessage: string
+    successMessage: string,
+    nextNightDisplay?: NightDisplaySettings
   ) {
     if (!pin) return;
     setBusy(true);
@@ -167,6 +180,7 @@ export default function AdminApp() {
       const settings = await saveAdminSettings(pin, {
         calendarSources: nextCalendarSources,
         importantKeywords: nextKeywords,
+        nightDisplay: nextNightDisplay,
         disabledSpecialDayIds: nextDisabledIds,
         specialDayEvents: nextEvents.map((event) => ({
           ...event,
@@ -177,6 +191,7 @@ export default function AdminApp() {
       setKeywordsText((settings.calendar?.importantKeywords || nextKeywords).join("\n"));
       setDisabledSpecialDayIds(settings.specialDays?.disabledIds || nextDisabledIds);
       setSpecialDayEvents(settings.specialDays?.events || nextEvents);
+      if (nextNightDisplay) setNightDisplay(settings.display?.nightMode || nextNightDisplay);
       toast.success(successMessage);
     } catch (error) {
       if (error instanceof UnauthorizedError) {
@@ -239,6 +254,35 @@ export default function AdminApp() {
     await persistSettings(disabledSpecialDayIds, calendarSources, keywords, nextEvents, "Data giornata salvata");
   }
 
+  async function saveNightDisplay(nextNightDisplay: NightDisplaySettings) {
+    const keywords = parseKeywordEditorValue(keywordsText);
+    await persistSettings(
+      disabledSpecialDayIds,
+      calendarSources,
+      keywords,
+      specialDayEvents,
+      nextNightDisplay.enabled ? "Orari schermo salvati" : "Spegnimento notturno disattivato",
+      nextNightDisplay
+    );
+  }
+
+  async function handleDisplayPower(action: "on" | "off", output: string) {
+    if (!pin) return;
+    setBusy(true);
+    try {
+      await setDisplayPower(pin, action, output);
+      toast.success(action === "on" ? "Schermo acceso" : "Schermo spento");
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        handleUnauthorized();
+        return;
+      }
+      toast.error(action === "on" ? "Accensione non riuscita" : "Spegnimento non riuscito");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (needsPin) {
     return (
       <div className="admin-root">
@@ -282,6 +326,9 @@ export default function AdminApp() {
               onSaveKeywords={saveKeywords}
               calendarSources={calendarSources}
               onSaveCalendarSources={saveCalendarSources}
+              nightDisplay={nightDisplay}
+              onSaveNightDisplay={saveNightDisplay}
+              onDisplayPower={handleDisplayPower}
               busy={busy}
               events={specialDayEvents}
               disabledIds={disabledSpecialDayIds}

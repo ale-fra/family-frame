@@ -86,6 +86,23 @@ This installs:
 - `family-frame-kiosk.service`: Chromium kiosk, restarted on crash.
 - `family-frame-update.timer`: periodic `git pull --ff-only` and rebuild every 30 minutes.
 
+To turn the external frame display off overnight and bring it back in the morning, install the
+user-level display timers:
+
+```bash
+bash scripts/install-night-display.sh
+```
+
+By default this turns `DVI-I-1-1` off at 23:00 and restarts `family-frame-kiosk.service` at 07:00.
+Override the schedule or output if needed:
+
+```bash
+FRAME_NIGHT_OFF_TIME=22:30 FRAME_MORNING_ON_TIME=07:30 FRAME_DISPLAY_OUTPUT=DVI-I-1-1 bash scripts/install-night-display.sh
+```
+
+The same night schedule can also be managed from `/admin`, where the external display can be
+turned on or off immediately.
+
 The update script refuses to pull when the working tree is dirty:
 
 ```bash

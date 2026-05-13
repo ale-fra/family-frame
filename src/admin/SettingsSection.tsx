@@ -1,16 +1,19 @@
 import * as React from "react";
-import type { CalendarSource, SpecialDayConfig, SpecialDaySchedule } from "@/lib/types";
+import type { CalendarSource, NightDisplaySettings, SpecialDayConfig, SpecialDaySchedule } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { specialDayScheduleLabel } from "./labels";
-import { CalendarDays, Plus, Save, Sparkles, Trash2, X } from "lucide-react";
+import { CalendarDays, MonitorOff, Plus, Power, Save, Sparkles, Trash2, X } from "lucide-react";
 
 type Props = {
   calendarSources: CalendarSource[];
   onSaveCalendarSources: (sources: CalendarSource[]) => void;
+  nightDisplay: NightDisplaySettings;
+  onSaveNightDisplay: (settings: NightDisplaySettings) => void;
+  onDisplayPower: (action: "on" | "off", output: string) => void;
   keywordsText: string;
   onKeywordsChange: (value: string) => void;
   onSaveKeywords: () => void;
@@ -24,6 +27,9 @@ type Props = {
 export function SettingsSection({
   calendarSources,
   onSaveCalendarSources,
+  nightDisplay,
+  onSaveNightDisplay,
+  onDisplayPower,
   keywordsText,
   onKeywordsChange,
   onSaveKeywords,
@@ -35,6 +41,13 @@ export function SettingsSection({
 }: Props) {
   return (
     <div className="space-y-6">
+      <NightDisplayEditor
+        settings={nightDisplay}
+        busy={busy}
+        onSave={onSaveNightDisplay}
+        onDisplayPower={onDisplayPower}
+      />
+
       <CalendarSourcesEditor
         sources={calendarSources}
         busy={busy}
@@ -119,6 +132,117 @@ export function SettingsSection({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function NightDisplayEditor({
+  settings,
+  busy,
+  onSave,
+  onDisplayPower
+}: {
+  settings: NightDisplaySettings;
+  busy: boolean;
+  onSave: (settings: NightDisplaySettings) => void;
+  onDisplayPower: (action: "on" | "off", output: string) => void;
+}) {
+  const [draft, setDraft] = React.useState<NightDisplaySettings>(settings);
+
+  React.useEffect(() => {
+    setDraft(settings);
+  }, [settings]);
+
+  function patch(next: Partial<NightDisplaySettings>) {
+    setDraft((current) => ({ ...current, ...next }));
+  }
+
+  const output = draft.output.trim() || "DVI-I-1-1";
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle>Schermo</CardTitle>
+            <CardDescription>
+              Accensione manuale e spegnimento automatico del monitor esterno.
+            </CardDescription>
+          </div>
+          <div className="hidden h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary sm:flex">
+            <MonitorOff className="h-5 w-5" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+          <label className="grid gap-1 text-xs text-muted-foreground">
+            Output
+            <Input
+              value={draft.output}
+              disabled={busy}
+              spellCheck={false}
+              placeholder="DVI-I-1-1"
+              onChange={(event) => patch({ output: event.target.value })}
+              className="h-9 text-sm"
+            />
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => onDisplayPower("off", output)}
+          >
+            <MonitorOff className="h-4 w-4" />
+            Spegni ora
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => onDisplayPower("on", output)}
+          >
+            <Power className="h-4 w-4" />
+            Accendi ora
+          </Button>
+        </div>
+
+        <div className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[auto_1fr_1fr_auto] sm:items-end">
+          <div className="flex items-center gap-3 sm:self-center">
+            <Switch
+              checked={draft.enabled}
+              disabled={busy}
+              onCheckedChange={(enabled) => patch({ enabled })}
+              aria-label="Attiva spegnimento notturno"
+            />
+            <span className="text-sm font-medium">Timer notte</span>
+          </div>
+          <label className="grid gap-1 text-xs text-muted-foreground">
+            Spegni alle
+            <Input
+              type="time"
+              value={draft.offTime}
+              disabled={busy || !draft.enabled}
+              onChange={(event) => patch({ offTime: event.target.value })}
+              className="h-9 text-sm"
+            />
+          </label>
+          <label className="grid gap-1 text-xs text-muted-foreground">
+            Accendi alle
+            <Input
+              type="time"
+              value={draft.onTime}
+              disabled={busy || !draft.enabled}
+              onChange={(event) => patch({ onTime: event.target.value })}
+              className="h-9 text-sm"
+            />
+          </label>
+          <Button type="button" onClick={() => onSave({ ...draft, output })} disabled={busy}>
+            <Save className="h-4 w-4" />
+            Salva orari
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
