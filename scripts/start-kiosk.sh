@@ -123,6 +123,29 @@ stop_existing_kiosk() {
   return 1
 }
 
+clear_stale_profile_locks() {
+  if pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local removed=0
+  local lock_path
+  for lock_path in \
+    "$CHROMIUM_PROFILE/SingletonLock" \
+    "$CHROMIUM_PROFILE/SingletonCookie" \
+    "$CHROMIUM_PROFILE/SingletonSocket"
+  do
+    if [[ -e "$lock_path" || -L "$lock_path" ]]; then
+      rm -f "$lock_path"
+      removed=1
+    fi
+  done
+
+  if [[ "$removed" == "1" ]]; then
+    echo "Removed stale Chromium profile locks."
+  fi
+}
+
 cleanup_on_exit() {
   if [[ "$CLEANUP_ON_EXIT" == "1" ]]; then
     stop_existing_kiosk || true
@@ -166,6 +189,7 @@ if pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; then
 fi
 
 if ! pgrep -f -- "$KIOSK_PATTERN" >/dev/null 2>&1; then
+  clear_stale_profile_locks
   DISPLAY="$DISPLAY_VALUE" \
     XDG_CONFIG_DIRS=/etc/xdg \
     GTK_IM_MODULE=xim \
