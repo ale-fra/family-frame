@@ -17,7 +17,7 @@ export const defaultConfig: FrameConfig = {
     sourcesUrl: "/api/calendar-sources.json",
     sources: [],
     lookaheadDays: 12,
-    maxEvents: 4,
+    maxEvents: 7,
     refreshMinutes: 15,
     importantKeywords: [
       "compleanno", "anniversario", "colloquio", "riunione scuola", "ricevimento",

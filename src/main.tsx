@@ -202,11 +202,11 @@ function FrameApp() {
             code: payload.current.weather_code,
             windSpeed: payload.current.wind_speed_10m
           },
-          forecast: payload.daily.time.slice(0, 4).map((date: string, index: number) => ({
+          forecast: payload.daily.time.slice(1, 4).map((date: string, index: number) => ({
             date,
-            min: payload.daily.temperature_2m_min[index],
-            max: payload.daily.temperature_2m_max[index],
-            code: payload.daily.weather_code[index]
+            min: payload.daily.temperature_2m_min[index + 1],
+            max: payload.daily.temperature_2m_max[index + 1],
+            code: payload.daily.weather_code[index + 1]
           }))
         });
       } catch {
@@ -305,42 +305,38 @@ function FrameApp() {
       </section>
 
       <aside className="info-panel">
-        <header className="clock-block">
-          <div className="time">{formatTime(clock)}</div>
+        <header className="status-block">
           <div className="date">{formatFullDate(clock)}</div>
-        </header>
-
-        <section className="weather-block">
-          {config.weather.showLocationLabel !== false ? (
-            <div className="section-label">{weather.locationLabel || config.weather.label}</div>
-          ) : null}
+          <div className="status-top">
+            <div className="time-cluster">
+              <div className="time">{formatTime(clock)}</div>
+            </div>
+            {weather.current ? (
+              <div className="weather-cluster">
+                <div className="current-weather-row">
+                  <WeatherIcon code={weather.current.code} className="weather-icon" />
+                  <span className="current-temperature">{Math.round(weather.current.temperature)}°</span>
+                </div>
+              </div>
+            ) : null}
+          </div>
           {weather.current ? (
-            <>
-              <div className="current-weather">
-                <WeatherIcon code={weather.current.code} className="weather-icon" />
-                <span>{Math.round(weather.current.temperature)}°</span>
-              </div>
-              <div className="weather-detail">
-                Percepiti {Math.round(weather.current.apparentTemperature)}° · Vento {Math.round(weather.current.windSpeed)} km/h
-              </div>
-              <div className="forecast-row">
-                {weather.forecast.map((day) => (
-                  <div className="forecast-day" key={day.date}>
-                    <span>{formatDay(day.date)}</span>
-                    <WeatherIcon code={day.code} className="forecast-icon" />
-                    <strong>{Math.round(day.max)}°</strong>
-                    <small>{Math.round(day.min)}°</small>
-                  </div>
-                ))}
-              </div>
-            </>
+            <div className="forecast-row">
+              {weather.forecast.map((day) => (
+                <div className="forecast-day" key={day.date}>
+                  <span>{formatDay(day.date)}</span>
+                  <WeatherIcon code={day.code} className="forecast-icon" />
+                  <strong>{Math.round(day.max)}°</strong>
+                </div>
+              ))}
+            </div>
           ) : (
             <p className="muted">{weather.error || "Caricamento meteo"}</p>
           )}
-        </section>
+        </header>
 
         <section className="events-block">
-          <div className="section-label">Eventi importanti</div>
+          <div className="section-label">Prossimi eventi</div>
           {events.length > 0 ? (
             <div className="event-list">
               {events.slice(0, config.calendar.maxEvents).map((event) => (
