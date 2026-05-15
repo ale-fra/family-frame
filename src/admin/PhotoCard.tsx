@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { photoStatusLabels } from "./labels";
 import { formatBytes, formatShortDate } from "@/lib/format";
-import { Check, EyeOff, MoreVertical, Pin, PinOff, RotateCcw, Trash2 } from "lucide-react";
+import { Check, CheckCircle2, Crop, EyeOff, MoreVertical, Pin, PinOff, RotateCcw, Trash2 } from "lucide-react";
 
 const statusVariant: Record<PhotoStatus, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "outline",
@@ -30,18 +30,40 @@ type Props = {
   onRestore: () => void;
   onPin: () => void;
   onUnpin: () => void;
+  onOptimize: () => void;
 };
 
-export function PhotoCard({ photo, pinned, busy, onApprove, onHide, onTrash, onRestore, onPin, onUnpin }: Props) {
+export function PhotoCard({
+  photo,
+  pinned,
+  busy,
+  onApprove,
+  onHide,
+  onTrash,
+  onRestore,
+  onPin,
+  onUnpin,
+  onOptimize
+}: Props) {
+  const thumbSrc = photo.optimizedThumbSrc || photo.thumbSrc || photo.src;
+
   return (
     <article className="group overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm transition-shadow hover:shadow-md">
       <div className="relative aspect-square overflow-hidden bg-muted">
         <img
-          src={photo.thumbSrc || photo.src}
+          src={thumbSrc}
           alt={photo.originalName}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
         />
+        {photo.optimizedSrc ? (
+          <div className="absolute left-2 top-2">
+            <Badge variant="secondary" className="gap-1 shadow-md backdrop-blur">
+              <CheckCircle2 className="h-3 w-3" />
+              Ottimizzata
+            </Badge>
+          </div>
+        ) : null}
         <div className="absolute right-2 top-2">
           <Badge variant={statusVariant[photo.status]} className="shadow-md backdrop-blur">
             {pinned ? "Fissa" : photoStatusLabels[photo.status]}
@@ -79,6 +101,11 @@ export function PhotoCard({ photo, pinned, busy, onApprove, onHide, onTrash, onR
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={onOptimize}>
+              <Crop className="mr-2 h-4 w-4" />
+              Ottimizza
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             {photo.status !== "approved" && photo.status !== "trashed" && (
               <DropdownMenuItem onClick={onApprove}>
                 <Check className="mr-2 h-4 w-4" />

@@ -135,6 +135,8 @@ export type Photo = {
   id?: string;
   src: string;
   thumbSrc?: string;
+  optimizedSrc?: string;
+  optimizedThumbSrc?: string;
   caption?: string;
 };
 
@@ -146,8 +148,28 @@ export type AdminPhoto = Photo & {
   status: PhotoStatus;
   source: "web" | "telegram";
   size: number;
+  optimized?: PhotoOptimization;
   createdAt: string;
   updatedAt: string;
+};
+
+export type PhotoOptimization = {
+  filename: string;
+  thumbFilename: string;
+  width: number;
+  height: number;
+  format: "webp";
+  quality: number;
+  mode: "contain" | "cover";
+  crop?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+  sourceUpdatedAt: string;
 };
 
 export type PhotoManifest = {

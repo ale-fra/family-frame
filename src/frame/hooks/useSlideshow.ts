@@ -4,6 +4,7 @@ import { logFrameEvent } from "../api";
 import {
   nextDisplayablePhotoIndex,
   normalizedSlideshowInterval,
+  displayPhotoSrc,
   photoKey,
   photoSignature,
   syncFailedPhotoKeys
@@ -122,11 +123,12 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
     if (!nextPhoto || nextIndex === photoIndex) return;
 
     const nextKey = photoKey(nextPhoto);
+    const nextSrc = displayPhotoSrc(nextPhoto);
     const prepared: PreparedPhoto = {
       image: new Image(),
       index: nextIndex,
       key: nextKey,
-      src: nextPhoto.src,
+      src: nextSrc,
       status: "loading",
       startedAt: Date.now()
     };
@@ -140,7 +142,7 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
         index: nextIndex,
         total: photos.length,
         photoId: nextPhoto.id || "",
-        src: nextPhoto.src,
+        src: nextSrc,
         naturalWidth: prepared.image.naturalWidth,
         naturalHeight: prepared.image.naturalHeight,
         elapsedMs: Date.now() - prepared.startedAt,
@@ -158,7 +160,7 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
         index: nextIndex,
         total: photos.length,
         photoId: nextPhoto.id || "",
-        src: nextPhoto.src,
+        src: nextSrc,
         caption: nextPhoto.caption || ""
       });
       releasePreparedPhoto(prepared);
@@ -169,7 +171,7 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
     prepared.image.onload = markReady;
     prepared.image.onerror = markFailed;
     prepared.image.decoding = "async";
-    prepared.image.src = nextPhoto.src;
+    prepared.image.src = nextSrc;
     if (typeof prepared.image.decode === "function") {
       prepared.image.decode().then(markReady).catch(markFailed);
     }
@@ -207,8 +209,8 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
           nextIndex,
           total: photos.length,
           intervalSeconds: slideshowIntervalSeconds,
-          previousPhoto: photos[current]?.src || "",
-          nextPhoto: photos[nextIndex]?.src || ""
+          previousPhoto: photos[current] ? displayPhotoSrc(photos[current]) : "",
+          nextPhoto: photos[nextIndex] ? displayPhotoSrc(photos[nextIndex]) : ""
         });
         activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
         if (nextIndex !== current) activePhotoSelectedAtRef.current = Date.now();
@@ -238,7 +240,7 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
       index: photoIndex,
       total: photos.length,
       photoId: activePhoto.id || "",
-      src: activePhoto.src,
+      src: displayPhotoSrc(activePhoto),
       caption: activePhoto.caption || "",
       visibilityState: document.visibilityState
     });
@@ -253,7 +255,7 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
       index: photoIndex,
       total: photos.length,
       photoId: photo.id || "",
-      src: photo.src,
+      src: displayPhotoSrc(photo),
       naturalWidth: image.naturalWidth,
       naturalHeight: image.naturalHeight,
       elapsedMs: Date.now() - activePhotoSelectedAtRef.current,
@@ -266,7 +268,7 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
           index: photoIndex,
           total: photos.length,
           photoId: photo.id || "",
-          src: photo.src,
+          src: displayPhotoSrc(photo),
           elapsedMs: Date.now() - activePhotoSelectedAtRef.current,
           visibilityState: document.visibilityState,
           ...imageVisibilityDetails(image)
@@ -277,12 +279,12 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
 
   const handlePhotoError = React.useCallback((photo: Photo) => {
     failedPhotoKeysRef.current.add(photoKey(photo));
-    console.warn("Skipping photo that failed to load:", photo.src);
+    console.warn("Skipping photo that failed to load:", displayPhotoSrc(photo));
     logFrameEvent("photo-load-error", {
       index: photoIndex,
       total: photos.length,
       photoId: photo.id || "",
-      src: photo.src,
+      src: displayPhotoSrc(photo),
       caption: photo.caption || ""
     });
     if (photos.length > 1) {
@@ -293,8 +295,8 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
           previousIndex: current,
           nextIndex,
           total: photos.length,
-          previousPhoto: photos[current]?.src || "",
-          nextPhoto: photos[nextIndex]?.src || ""
+          previousPhoto: photos[current] ? displayPhotoSrc(photos[current]) : "",
+          nextPhoto: photos[nextIndex] ? displayPhotoSrc(photos[nextIndex]) : ""
         });
         activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
         if (nextIndex !== current) activePhotoSelectedAtRef.current = Date.now();
@@ -350,7 +352,7 @@ function validPreparedPhoto(preparedPhoto: PreparedPhoto | null, photos: Photo[]
   if (!preparedPhoto) return null;
   if (activePhoto && preparedPhoto.key === photoKey(activePhoto)) return null;
   const photo = photos[preparedPhoto.index];
-  if (!photo || photoKey(photo) !== preparedPhoto.key || photo.src !== preparedPhoto.src) return null;
+  if (!photo || photoKey(photo) !== preparedPhoto.key || displayPhotoSrc(photo) !== preparedPhoto.src) return null;
   return preparedPhoto;
 }
 

@@ -209,6 +209,32 @@ export function createPhotoServerApp({
     response.json({ photo });
   });
 
+  app.post("/api/admin/photos/:id/optimize", requireAdmin(runtime), async (request, response) => {
+    try {
+      const photo = await photoStore.optimizePhoto(request.params.id, request.body);
+      const photos = await photoStore.listPhotos();
+      emitFrameEvent(frameEventClients, "photos", { photoId: photo.id, optimized: true });
+      response.json({ photo, photos });
+    } catch (error) {
+      const statusCode = error.statusCode || 500;
+      if (statusCode >= 500) console.error("Photo optimization failed:", error.message);
+      response.status(statusCode).json({ error: error.message || "Photo optimization failed" });
+    }
+  });
+
+  app.delete("/api/admin/photos/:id/optimize", requireAdmin(runtime), async (request, response) => {
+    try {
+      const photo = await photoStore.removeOptimizedPhoto(request.params.id);
+      const photos = await photoStore.listPhotos();
+      emitFrameEvent(frameEventClients, "photos", { photoId: photo.id, optimized: false });
+      response.json({ photo, photos });
+    } catch (error) {
+      const statusCode = error.statusCode || 500;
+      if (statusCode >= 500) console.error("Photo optimization removal failed:", error.message);
+      response.status(statusCode).json({ error: error.message || "Photo optimization removal failed" });
+    }
+  });
+
   app.delete("/api/admin/photos/:id", requireAdmin(runtime), async (request, response) => {
     const db = await photoStore.readDb();
     const photo = db.photos.find((entry) => entry.id === request.params.id);

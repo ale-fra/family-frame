@@ -31,6 +31,7 @@ export function createRuntimeConfig() {
     rootDir,
     dataDir,
     photoDir: path.join(dataDir, "photos"),
+    optimizedPhotoDir: path.join(dataDir, "photos", "optimized"),
     trashDir: path.join(dataDir, "trash"),
     dbPath: path.join(dataDir, "photos.json"),
     clientLogPath: path.join(dataDir, "frame-client.log"),

@@ -14,6 +14,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { PinGate } from "./PinGate";
 import { AdminLayout } from "./AdminLayout";
+import { PhotoOptimizationDialog } from "./PhotoOptimizationDialog";
 import { PhotosSection } from "./PhotosSection";
 import { SettingsSection } from "./SettingsSection";
 import { countPhotos, type AdminSection } from "./labels";
@@ -22,12 +23,15 @@ import {
   defaultNightDisplaySettings,
   loadAdminSettings,
   loadPhotos,
+  optimizePhoto,
   parseKeywordEditorValue,
+  removePhotoOptimization,
   saveAdminSettings,
   setPinnedPhoto,
   setDisplayPower,
   updatePhotoStatus,
-  uploadPhotos
+  uploadPhotos,
+  type OptimizePhotoPayload
 } from "./api";
 
 const PIN_STORAGE_KEY = "frameAdminPin";
@@ -39,6 +43,7 @@ export default function AdminApp() {
   const [activeSection, setActiveSection] = React.useState<AdminSection>("photos");
   const [activeTab, setActiveTab] = React.useState<PhotoStatus>("pending");
   const [busy, setBusy] = React.useState(false);
+  const [optimizingPhoto, setOptimizingPhoto] = React.useState<AdminPhoto | null>(null);
 
   const [keywordsText, setKeywordsText] = React.useState(defaultConfig.calendar.importantKeywords.join("\n"));
   const [calendarSources, setCalendarSources] = React.useState<CalendarSource[]>(
@@ -191,6 +196,46 @@ export default function AdminApp() {
         return;
       }
       toast.error("Aggiornamento non riuscito");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleOptimizePhoto(payload: OptimizePhotoPayload) {
+    if (!pin || !optimizingPhoto) return false;
+    setBusy(true);
+    try {
+      const list = await optimizePhoto(pin, optimizingPhoto.id, payload);
+      setPhotos(list);
+      toast.success("Foto ottimizzata", { description: optimizingPhoto.originalName });
+      return true;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        handleUnauthorized();
+        return false;
+      }
+      toast.error("Ottimizzazione non riuscita");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemovePhotoOptimization() {
+    if (!pin || !optimizingPhoto) return false;
+    setBusy(true);
+    try {
+      const list = await removePhotoOptimization(pin, optimizingPhoto.id);
+      setPhotos(list);
+      toast.success("Ottimizzazione rimossa", { description: optimizingPhoto.originalName });
+      return true;
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        handleUnauthorized();
+        return false;
+      }
+      toast.error("Rimozione non riuscita");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -350,6 +395,7 @@ export default function AdminApp() {
               onUpdateStatus={handleUpdateStatus}
               pinnedPhotoId={pinnedPhotoId}
               onPinnedPhotoChange={handlePinnedPhoto}
+              onOptimizePhoto={setOptimizingPhoto}
             />
           ) : (
             <SettingsSection
@@ -369,6 +415,16 @@ export default function AdminApp() {
             />
           )}
         </AdminLayout>
+        <PhotoOptimizationDialog
+          photo={optimizingPhoto}
+          open={Boolean(optimizingPhoto)}
+          busy={busy}
+          onOpenChange={(open) => {
+            if (!open) setOptimizingPhoto(null);
+          }}
+          onSave={handleOptimizePhoto}
+          onRemove={handleRemovePhotoOptimization}
+        />
         <Toaster richColors closeButton position="top-right" />
       </TooltipProvider>
     </div>

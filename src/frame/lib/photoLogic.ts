@@ -42,11 +42,22 @@ export function samePhotoList(left: Photo[], right: Photo[]) {
 }
 
 export function photoSignature(photo: Photo) {
-  return [photoKey(photo), photo.src, photo.thumbSrc || "", photo.caption || ""].join("\u0000");
+  return [
+    photoKey(photo),
+    photo.src,
+    photo.thumbSrc || "",
+    photo.optimizedSrc || "",
+    photo.optimizedThumbSrc || "",
+    photo.caption || ""
+  ].join("\u0000");
 }
 
 export function photoKey(photo: Photo) {
   return photo.id || photo.src;
+}
+
+export function displayPhotoSrc(photo: Photo) {
+  return photo.optimizedSrc || photo.src;
 }
 
 export function syncFailedPhotoKeys(failedKeys: Set<string>, photos: Photo[]) {

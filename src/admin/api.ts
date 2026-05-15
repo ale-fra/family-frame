@@ -77,6 +77,45 @@ export async function updatePhotoStatus(
   );
 }
 
+export type OptimizePhotoPayload = {
+  mode: "contain" | "cover";
+  quality: number;
+  crop?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+};
+
+export async function optimizePhoto(
+  pin: string,
+  photoId: string,
+  payload: OptimizePhotoPayload
+): Promise<AdminPhoto[]> {
+  const response = await request(
+    `/api/admin/photos/${photoId}/optimize`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    },
+    pin
+  );
+  const body = (await response.json()) as { photos: AdminPhoto[] };
+  return body.photos;
+}
+
+export async function removePhotoOptimization(pin: string, photoId: string): Promise<AdminPhoto[]> {
+  const response = await request(
+    `/api/admin/photos/${photoId}/optimize`,
+    { method: "DELETE" },
+    pin
+  );
+  const body = (await response.json()) as { photos: AdminPhoto[] };
+  return body.photos;
+}
+
 export type AdminSettingsBundle = {
   baseConfig: FrameConfig;
   calendarSources: CalendarSource[];

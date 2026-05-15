@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { nextDisplayablePhotoIndex, normalizedSlideshowInterval, photoKey, samePhotoList } from "../src/frame/lib/photoLogic";
+import {
+  displayPhotoSrc,
+  nextDisplayablePhotoIndex,
+  normalizedSlideshowInterval,
+  photoKey,
+  samePhotoList
+} from "../src/frame/lib/photoLogic";
 
 describe("photo slideshow logic", () => {
   const photos = [
@@ -30,6 +36,12 @@ describe("photo slideshow logic", () => {
   it("compares full photo list signatures", () => {
     expect(samePhotoList(photos, [...photos])).toBe(true);
     expect(samePhotoList(photos, [{ id: "a", src: "/changed.jpg" }, photos[1], photos[2]])).toBe(false);
+    expect(samePhotoList(photos, [{ ...photos[0], optimizedSrc: "/a.webp" }, photos[1], photos[2]])).toBe(false);
+  });
+
+  it("uses optimized photo sources when available", () => {
+    expect(displayPhotoSrc({ src: "/original.jpg" })).toBe("/original.jpg");
+    expect(displayPhotoSrc({ src: "/original.jpg", optimizedSrc: "/optimized.webp" })).toBe("/optimized.webp");
   });
 
   it("normalizes short slideshow intervals", () => {

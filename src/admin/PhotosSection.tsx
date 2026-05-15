@@ -19,6 +19,7 @@ type Props = {
   onUpdateStatus: (photo: AdminPhoto, status: PhotoStatus) => void;
   pinnedPhotoId: string;
   onPinnedPhotoChange: (photo: AdminPhoto, pinned: boolean) => void;
+  onOptimizePhoto: (photo: AdminPhoto) => void;
 };
 
 export function PhotosSection({
@@ -30,7 +31,8 @@ export function PhotosSection({
   onUpload,
   onUpdateStatus,
   pinnedPhotoId,
-  onPinnedPhotoChange
+  onPinnedPhotoChange,
+  onOptimizePhoto
 }: Props) {
   const visible = photos.filter((photo) => photo.status === activeTab);
   const pinnedPhoto = pinnedPhotoId ? photos.find((photo) => photo.id === pinnedPhotoId) : undefined;
@@ -53,7 +55,7 @@ export function PhotosSection({
         <Card className="border-primary/25 bg-primary/5">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
             <img
-              src={pinnedPhoto.thumbSrc || pinnedPhoto.src}
+              src={pinnedPhoto.optimizedThumbSrc || pinnedPhoto.thumbSrc || pinnedPhoto.src}
               alt={pinnedPhoto.originalName}
               className="h-16 w-16 rounded-md object-cover"
               loading="lazy"
@@ -120,6 +122,7 @@ export function PhotosSection({
                   onRestore={() => onUpdateStatus(photo, "hidden")}
                   onPin={() => onPinnedPhotoChange(photo, true)}
                   onUnpin={() => onPinnedPhotoChange(photo, false)}
+                  onOptimize={() => onOptimizePhoto(photo)}
                 />
               ))}
             </div>

@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { Photo, SpecialDayConfig } from "@/lib/types";
 import { containedBox } from "../lib/layout";
+import { displayPhotoSrc } from "../lib/photoLogic";
 import { PhotoFrameFlowers, SpecialDayLayer } from "./SpecialDayLayer";
 
 export function PhotoStage({
@@ -25,6 +26,7 @@ export function PhotoStage({
   const [photoAspect, setPhotoAspect] = React.useState(1);
   const activeSpecialDayEffects = new Set(activeSpecialDay?.effects || []);
   const photoBox = containedBox(photoStageSize.width, photoStageSize.height, photoAspect);
+  const displaySrc = activePhoto ? displayPhotoSrc(activePhoto) : "";
 
   return (
     <section className="photo-stage" ref={stageRef}>
@@ -33,7 +35,7 @@ export function PhotoStage({
         <>
           <div
             className="photo-stage-backdrop"
-            style={{ backgroundImage: `url(${activePhoto.src})` }}
+            style={{ backgroundImage: `url(${displaySrc})` }}
           />
           <div className="photo-stage-vignette" />
           <div
@@ -41,8 +43,8 @@ export function PhotoStage({
             style={photoBox ? { width: photoBox.width, height: photoBox.height } : undefined}
           >
             <img
-              key={activePhoto.src}
-              src={activePhoto.src}
+              key={displaySrc}
+              src={displaySrc}
               alt={activePhoto.caption || "Foto di famiglia"}
               loading="eager"
               decoding="sync"
