@@ -3,10 +3,11 @@ import type { AdminPhoto, PhotoStatus } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { UploadDropzone } from "./UploadDropzone";
 import { PhotoCard } from "./PhotoCard";
 import { adminTabs, emptyAdminText, emptyAdminTitle } from "./labels";
-import { Inbox } from "lucide-react";
+import { Inbox, PinOff } from "lucide-react";
 
 type Props = {
   photos: AdminPhoto[];
@@ -32,6 +33,7 @@ export function PhotosSection({
   onPinnedPhotoChange
 }: Props) {
   const visible = photos.filter((photo) => photo.status === activeTab);
+  const pinnedPhoto = pinnedPhotoId ? photos.find((photo) => photo.id === pinnedPhotoId) : undefined;
 
   return (
     <div className="space-y-6">
@@ -46,6 +48,38 @@ export function PhotosSection({
           <UploadDropzone busy={busy} onFiles={onUpload} />
         </CardContent>
       </Card>
+
+      {pinnedPhoto ? (
+        <Card className="border-primary/25 bg-primary/5">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+            <img
+              src={pinnedPhoto.thumbSrc || pinnedPhoto.src}
+              alt={pinnedPhoto.originalName}
+              className="h-16 w-16 rounded-md object-cover"
+              loading="lazy"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">Foto fissa attiva</p>
+              <p className="truncate text-sm text-muted-foreground" title={pinnedPhoto.originalName}>
+                {pinnedPhoto.originalName}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                La cornice resta su questa foto finché non la rimuovi.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto"
+              disabled={busy}
+              onClick={() => onPinnedPhotoChange(pinnedPhoto, false)}
+            >
+              <PinOff className="h-4 w-4" />
+              Rimuovi
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader className="gap-4">

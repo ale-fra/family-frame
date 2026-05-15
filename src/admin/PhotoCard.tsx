@@ -58,6 +58,19 @@ export function PhotoCard({ photo, pinned, busy, onApprove, onHide, onTrash, onR
             {formatShortDate(photo.createdAt)}
           </p>
         </div>
+        {photo.status === "approved" && (
+          <Button
+            variant={pinned ? "secondary" : "outline"}
+            size="icon-sm"
+            className="shrink-0"
+            disabled={busy}
+            title={pinned ? "Rimuovi foto fissa" : "Fissa nella cornice"}
+            onClick={pinned ? onUnpin : onPin}
+          >
+            {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+            <span className="sr-only">{pinned ? "Rimuovi foto fissa" : "Fissa nella cornice"}</span>
+          </Button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={busy}>

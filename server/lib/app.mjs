@@ -10,6 +10,7 @@ export function createPhotoServerApp({
   settingsStore,
   systemActions
 }) {
+  const frameEventClients = new Set();
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
@@ -36,6 +37,26 @@ export function createPhotoServerApp({
 
   app.get("/api/health", (_request, response) => {
     response.json({ ok: true });
+  });
+
+  app.get("/api/events", (request, response) => {
+    response.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-store",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no"
+    });
+    response.write(`data: ${JSON.stringify({ type: "connected", at: new Date().toISOString() })}\n\n`);
+    frameEventClients.add(response);
+
+    const heartbeat = setInterval(() => {
+      response.write(`data: ${JSON.stringify({ type: "heartbeat", at: new Date().toISOString() })}\n\n`);
+    }, 30_000);
+
+    request.on("close", () => {
+      clearInterval(heartbeat);
+      frameEventClients.delete(response);
+    });
   });
 
   app.get("/api/calendar.ics", async (_request, response) => {
@@ -135,6 +156,7 @@ export function createPhotoServerApp({
       }
     }
     await settingsStore.writeSettings(settings);
+    emitFrameEvent(frameEventClients, "settings", { settings });
     response.json(settings);
   });
 
@@ -154,9 +176,11 @@ export function createPhotoServerApp({
       }));
     }
 
+    const photos = await photoStore.listPhotos();
+    emitFrameEvent(frameEventClients, "photos", { count: photos.length });
     response.status(201).json({
       results,
-      photos: await photoStore.listPhotos()
+      photos
     });
   });
 
@@ -178,6 +202,10 @@ export function createPhotoServerApp({
     photo.updatedAt = new Date().toISOString();
     await photoStore.writeDb(db);
     if (nextStatus !== "approved") await settingsStore.clearPinnedPhotoIfNeeded(photo.id);
+    emitFrameEvent(frameEventClients, "photos", { photoId: photo.id, status: nextStatus });
+    if (nextStatus !== "approved") emitFrameEvent(frameEventClients, "settings", {
+      settings: await settingsStore.readPublicSettings()
+    });
     response.json({ photo });
   });
 
@@ -193,6 +221,8 @@ export function createPhotoServerApp({
     photo.updatedAt = new Date().toISOString();
     await photoStore.writeDb(db);
     await settingsStore.clearPinnedPhotoIfNeeded(photo.id);
+    emitFrameEvent(frameEventClients, "photos", { photoId: photo.id, status: "trashed" });
+    emitFrameEvent(frameEventClients, "settings", { settings: await settingsStore.readPublicSettings() });
     response.json({ photo });
   });
 
@@ -237,6 +267,17 @@ export function createPhotoServerApp({
   });
 
   return app;
+}
+
+function emitFrameEvent(clients, type, detail = {}) {
+  const payload = `data: ${JSON.stringify({ type, detail, at: new Date().toISOString() })}\n\n`;
+  for (const client of clients) {
+    try {
+      client.write(payload);
+    } catch {
+      clients.delete(client);
+    }
+  }
 }
 
 function requireAdmin(runtime) {

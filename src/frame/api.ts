@@ -1,5 +1,11 @@
 import type { FrameSettings, PhotoManifest } from "@/lib/types";
 
+export type FrameServerEvent = {
+  type: string;
+  detail?: unknown;
+  at?: string;
+};
+
 export async function fetchApprovedPhotos() {
   try {
     const response = await fetch("/api/photos?status=approved", { cache: "no-store" });
@@ -39,6 +45,21 @@ export function logFrameEvent(event: string, details: Record<string, string | nu
   }).catch(() => {
     // The frame should keep running even when the local photo server is unavailable.
   });
+}
+
+export function subscribeFrameEvents(onEvent: (event: FrameServerEvent) => void) {
+  if (typeof EventSource === "undefined") return () => {};
+
+  const source = new EventSource("/api/events");
+  source.onmessage = (message) => {
+    try {
+      onEvent(JSON.parse(message.data) as FrameServerEvent);
+    } catch {
+      // Ignore malformed event payloads; polling remains the fallback.
+    }
+  };
+
+  return () => source.close();
 }
 
 function frameClientId() {

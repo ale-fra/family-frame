@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { Photo, PhotoManifest } from "@/lib/types";
-import { fetchApprovedPhotos } from "../api";
+import { fetchApprovedPhotos, subscribeFrameEvents } from "../api";
 import { samePhotoList } from "../lib/photoLogic";
 
 export function usePhotos(photoManifestUrl: string) {
@@ -39,9 +39,13 @@ export function usePhotos(photoManifestUrl: string) {
     }
 
     loadPhotos();
+    const unsubscribe = subscribeFrameEvents((event) => {
+      if (event.type === "photos") loadPhotos();
+    });
     const interval = window.setInterval(loadPhotos, 60_000);
     return () => {
       cancelled = true;
+      unsubscribe();
       window.clearInterval(interval);
     };
   }, [photoManifestUrl]);
