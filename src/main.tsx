@@ -90,6 +90,7 @@ function FrameApp() {
   const [events, setEvents] = React.useState<CalendarEvent[]>([]);
   const [clock, setClock] = React.useState(new Date());
   const [specialDayPulse, setSpecialDayPulse] = React.useState(0);
+  const [loadedPhotoKey, setLoadedPhotoKey] = React.useState("");
   const photoStageRef = React.useRef<HTMLElement | null>(null);
   const shuffleQueueRef = React.useRef<number[]>([]);
   const failedPhotoKeysRef = React.useRef<Set<string>>(new Set());
@@ -257,8 +258,10 @@ function FrameApp() {
   }, []);
 
   React.useEffect(() => {
-    if (photos.length < 2 || manualPaused || pinnedPhotoId) return;
-    const interval = window.setInterval(() => {
+    if (!activePhoto || photos.length < 2 || manualPaused || pinnedPhotoId) return;
+    if (loadedPhotoKey !== photoKey(activePhoto)) return;
+
+    const timeout = window.setTimeout(() => {
       setPhotoIndex((current) => {
         const nextIndex = nextDisplayablePhotoIndex(current, photos, shuffleQueueRef, failedPhotoKeysRef);
         logFrameEvent("slideshow-advance", {
@@ -275,8 +278,8 @@ function FrameApp() {
         return nextIndex;
       });
     }, slideshowIntervalSeconds * 1000);
-    return () => window.clearInterval(interval);
-  }, [manualPaused, photos, pinnedPhotoId, slideshowIntervalSeconds]);
+    return () => window.clearTimeout(timeout);
+  }, [activePhoto, loadedPhotoKey, manualPaused, photos, pinnedPhotoId, slideshowIntervalSeconds]);
 
   React.useEffect(() => {
     const api: FamilyFrameDebugApi = {
@@ -452,23 +455,43 @@ function FrameApp() {
               style={photoBox ? { width: photoBox.width, height: photoBox.height } : undefined}
             >
               <img
+                key={activePhoto.src}
                 src={activePhoto.src}
                 alt={activePhoto.caption || "Foto di famiglia"}
+                loading="eager"
+                decoding="sync"
                 onLoad={(event) => {
                   const image = event.currentTarget;
                   if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                    const selectedPhoto = activePhoto;
+                    const selectedPhotoKey = photoKey(selectedPhoto);
                     setPhotoAspect(image.naturalWidth / image.naturalHeight);
-                    activePhotoKeyRef.current = photoKey(activePhoto);
-                    failedPhotoKeysRef.current.delete(photoKey(activePhoto));
+                    activePhotoKeyRef.current = selectedPhotoKey;
+                    setLoadedPhotoKey(selectedPhotoKey);
+                    failedPhotoKeysRef.current.delete(selectedPhotoKey);
                     logFrameEvent("photo-loaded", {
                       index: photoIndex,
                       total: photos.length,
-                      photoId: activePhoto.id || "",
-                      src: activePhoto.src,
+                      photoId: selectedPhoto.id || "",
+                      src: selectedPhoto.src,
                       naturalWidth: image.naturalWidth,
                       naturalHeight: image.naturalHeight,
                       elapsedMs: Date.now() - activePhotoSelectedAtRef.current,
                       visibilityState: document.visibilityState
+                    });
+                    window.requestAnimationFrame(() => {
+                      window.requestAnimationFrame(() => {
+                        if (activePhotoKeyRef.current !== selectedPhotoKey) return;
+                        logFrameEvent("photo-visible", {
+                          index: photoIndex,
+                          total: photos.length,
+                          photoId: selectedPhoto.id || "",
+                          src: selectedPhoto.src,
+                          elapsedMs: Date.now() - activePhotoSelectedAtRef.current,
+                          visibilityState: document.visibilityState,
+                          ...imageVisibilityDetails(image)
+                        });
+                      });
                     });
                   }
                 }}
@@ -893,6 +916,26 @@ function syncFailedPhotoKeys(failedKeys: Set<string>, photos: Photo[]) {
   for (const key of failedKeys) {
     if (!validKeys.has(key)) failedKeys.delete(key);
   }
+}
+
+function imageVisibilityDetails(image: HTMLImageElement): Record<string, string | number | boolean | null> {
+  const imageRect = image.getBoundingClientRect();
+  const parentRect = image.parentElement?.getBoundingClientRect();
+  const centerX = imageRect.left + imageRect.width / 2;
+  const centerY = imageRect.top + imageRect.height / 2;
+  const topElement = document.elementFromPoint(centerX, centerY);
+
+  return {
+    imageWidth: Math.round(imageRect.width),
+    imageHeight: Math.round(imageRect.height),
+    imageLeft: Math.round(imageRect.left),
+    imageTop: Math.round(imageRect.top),
+    parentWidth: parentRect ? Math.round(parentRect.width) : null,
+    parentHeight: parentRect ? Math.round(parentRect.height) : null,
+    complete: image.complete,
+    currentSrc: image.currentSrc,
+    topElementClass: topElement instanceof HTMLElement ? topElement.className : ""
+  };
 }
 
 function logFrameEvent(event: string, details: Record<string, string | number | boolean | null>) {
