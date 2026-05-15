@@ -31,8 +31,10 @@ export function PhotoStage({
   const notifiedLoadedSrcRef = React.useRef("");
   const activeSpecialDayEffects = new Set(activeSpecialDay?.effects || []);
   const displaySrc = activePhoto ? displayPhotoSrc(activePhoto) : "";
+  const hasStageSize = photoStageSize.width > 0 && photoStageSize.height > 0;
   const isCurrentPhotoLoaded = loadedPhotoGeometry?.src === displaySrc;
-  const photoBox = isCurrentPhotoLoaded
+  const isCurrentPhotoReady = isCurrentPhotoLoaded && hasStageSize;
+  const photoBox = isCurrentPhotoReady
     ? containedBox(photoStageSize.width, photoStageSize.height, loadedPhotoGeometry.aspect)
     : null;
 
@@ -71,7 +73,7 @@ export function PhotoStage({
           />
           <div className="photo-stage-vignette" />
           <div
-            className={`photo-wrap${isCurrentPhotoLoaded ? "" : " is-loading"}`}
+            className={`photo-wrap${isCurrentPhotoReady ? "" : " is-loading"}`}
             style={photoBox ? { width: photoBox.width, height: photoBox.height } : undefined}
           >
             <img

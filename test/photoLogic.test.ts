@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  activePhotoIndex,
   displayPhotoSrc,
   nextDisplayablePhotoIndex,
   normalizedSlideshowInterval,
@@ -46,5 +47,12 @@ describe("photo slideshow logic", () => {
 
   it("normalizes short slideshow intervals", () => {
     expect(normalizedSlideshowInterval(1)).toBe(5);
+  });
+
+  it("uses a pinned photo index synchronously when configured", () => {
+    expect(activePhotoIndex(0, photos, "c")).toBe(2);
+    expect(activePhotoIndex(1, photos, "")).toBe(1);
+    expect(activePhotoIndex(8, photos, "")).toBe(0);
+    expect(activePhotoIndex(1, photos, "missing")).toBe(1);
   });
 });

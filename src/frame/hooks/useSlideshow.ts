@@ -2,6 +2,7 @@ import * as React from "react";
 import type { Photo } from "@/lib/types";
 import { logFrameEvent } from "../api";
 import {
+  activePhotoIndex,
   nextDisplayablePhotoIndex,
   normalizedSlideshowInterval,
   displayPhotoSrc,
@@ -23,7 +24,8 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
   const photoListCountRef = React.useRef(0);
   const activePhotoSelectedAtRef = React.useRef(Date.now());
   const slideshowIntervalSeconds = normalizedSlideshowInterval(intervalSeconds);
-  const activePhoto = photos[photoIndex];
+  const currentPhotoIndex = activePhotoIndex(photoIndex, photos, pinnedPhotoId);
+  const activePhoto = photos[currentPhotoIndex];
 
   const clearPreparedPhoto = React.useCallback(() => {
     releasePreparedPhoto(preparedPhotoRef.current);
@@ -42,27 +44,27 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
 
   const nextPhoto = React.useCallback(() => {
     if (photos.length === 0) return null;
-    const preparedPhoto = validPreparedPhoto(preparedPhotoRef.current, photos, photos[photoIndex]);
+    const preparedPhoto = validPreparedPhoto(preparedPhotoRef.current, photos, photos[currentPhotoIndex]);
     const nextIndex = preparedPhoto?.status === "ready"
       ? preparedPhoto.index
-      : nextDisplayablePhotoIndex(photoIndex, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
+      : nextDisplayablePhotoIndex(currentPhotoIndex, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
     clearPreparedPhoto();
     activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
     activePhotoSelectedAtRef.current = Date.now();
     setPhotoIndex(nextIndex);
     return photos[nextIndex] || null;
-  }, [clearPreparedPhoto, photoIndex, photos]);
+  }, [clearPreparedPhoto, currentPhotoIndex, photos]);
 
   const previousPhoto = React.useCallback(() => {
     if (photos.length === 0) return null;
-    const previousIndex = photoIndex <= 0 ? photos.length - 1 : photoIndex - 1;
+    const previousIndex = currentPhotoIndex <= 0 ? photos.length - 1 : currentPhotoIndex - 1;
     shuffleQueueRef.current = [];
     clearPreparedPhoto();
     activePhotoKeyRef.current = photos[previousIndex] ? photoKey(photos[previousIndex]) : "";
     activePhotoSelectedAtRef.current = Date.now();
     setPhotoIndex(previousIndex);
     return photos[previousIndex] || null;
-  }, [clearPreparedPhoto, photoIndex, photos]);
+  }, [clearPreparedPhoto, currentPhotoIndex, photos]);
 
   React.useEffect(() => {
     syncFailedPhotoKeys(failedPhotoKeysRef.current, photos);
@@ -118,9 +120,9 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
     const preparedPhoto = validPreparedPhoto(preparedPhotoRef.current, photos, activePhoto);
     if (preparedPhoto) return;
 
-    const nextIndex = nextDisplayablePhotoIndex(photoIndex, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
+    const nextIndex = nextDisplayablePhotoIndex(currentPhotoIndex, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
     const nextPhoto = photos[nextIndex];
-    if (!nextPhoto || nextIndex === photoIndex) return;
+    if (!nextPhoto || nextIndex === currentPhotoIndex) return;
 
     const nextKey = photoKey(nextPhoto);
     const nextSrc = displayPhotoSrc(nextPhoto);
@@ -178,9 +180,9 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
   }, [
     activePhoto,
     clearPreparedPhoto,
+    currentPhotoIndex,
     loadedPhotoKey,
     manualPaused,
-    photoIndex,
     photos,
     pinnedPhotoId,
     preparedPhotoRevision
@@ -192,24 +194,25 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
 
     const timeouts: number[] = [];
     const advanceWhenPrepared = () => {
-      const preparedPhoto = validPreparedPhoto(preparedPhotoRef.current, photos, photos[photoIndex]);
+      const preparedPhoto = validPreparedPhoto(preparedPhotoRef.current, photos, photos[currentPhotoIndex]);
       if (!preparedPhoto || preparedPhoto.status !== "ready") {
         timeouts.push(window.setTimeout(advanceWhenPrepared, 100));
         return;
       }
 
       setPhotoIndex((current) => {
-        const stillPrepared = validPreparedPhoto(preparedPhotoRef.current, photos, photos[current]);
+        const activeIndex = activePhotoIndex(current, photos, pinnedPhotoId);
+        const stillPrepared = validPreparedPhoto(preparedPhotoRef.current, photos, photos[activeIndex]);
         const nextIndex = stillPrepared?.status === "ready"
           ? stillPrepared.index
-          : nextDisplayablePhotoIndex(current, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
+          : nextDisplayablePhotoIndex(activeIndex, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
         logFrameEvent("slideshow-advance", {
           reason: "timer",
-          previousIndex: current,
+          previousIndex: activeIndex,
           nextIndex,
           total: photos.length,
           intervalSeconds: slideshowIntervalSeconds,
-          previousPhoto: photos[current] ? displayPhotoSrc(photos[current]) : "",
+          previousPhoto: photos[activeIndex] ? displayPhotoSrc(photos[activeIndex]) : "",
           nextPhoto: photos[nextIndex] ? displayPhotoSrc(photos[nextIndex]) : ""
         });
         activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
@@ -226,9 +229,9 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
   }, [
     activePhoto,
     clearPreparedPhoto,
+    currentPhotoIndex,
     loadedPhotoKey,
     manualPaused,
-    photoIndex,
     photos,
     pinnedPhotoId,
     slideshowIntervalSeconds
@@ -237,14 +240,14 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
   React.useEffect(() => {
     if (!activePhoto) return;
     logFrameEvent("photo-selected", {
-      index: photoIndex,
+      index: currentPhotoIndex,
       total: photos.length,
       photoId: activePhoto.id || "",
       src: displayPhotoSrc(activePhoto),
       caption: activePhoto.caption || "",
       visibilityState: document.visibilityState
     });
-  }, [activePhoto, photoIndex, photos.length]);
+  }, [activePhoto, currentPhotoIndex, photos.length]);
 
   const handlePhotoLoaded = React.useCallback((photo: Photo, image: HTMLImageElement) => {
     const selectedPhotoKey = photoKey(photo);
@@ -252,7 +255,7 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
     setLoadedPhotoKey(selectedPhotoKey);
     failedPhotoKeysRef.current.delete(selectedPhotoKey);
     logFrameEvent("photo-loaded", {
-      index: photoIndex,
+      index: currentPhotoIndex,
       total: photos.length,
       photoId: photo.id || "",
       src: displayPhotoSrc(photo),
@@ -265,7 +268,7 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
       window.requestAnimationFrame(() => {
         if (activePhotoKeyRef.current !== selectedPhotoKey) return;
         logFrameEvent("photo-visible", {
-          index: photoIndex,
+          index: currentPhotoIndex,
           total: photos.length,
           photoId: photo.id || "",
           src: displayPhotoSrc(photo),
@@ -275,13 +278,13 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
         });
       });
     });
-  }, [photoIndex, photos.length]);
+  }, [currentPhotoIndex, photos.length]);
 
   const handlePhotoError = React.useCallback((photo: Photo) => {
     failedPhotoKeysRef.current.add(photoKey(photo));
     console.warn("Skipping photo that failed to load:", displayPhotoSrc(photo));
     logFrameEvent("photo-load-error", {
-      index: photoIndex,
+      index: currentPhotoIndex,
       total: photos.length,
       photoId: photo.id || "",
       src: displayPhotoSrc(photo),
@@ -289,13 +292,14 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
     });
     if (photos.length > 1) {
       setPhotoIndex((current) => {
-        const nextIndex = nextDisplayablePhotoIndex(current, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
+        const activeIndex = activePhotoIndex(current, photos, pinnedPhotoId);
+        const nextIndex = nextDisplayablePhotoIndex(activeIndex, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
         logFrameEvent("slideshow-advance", {
           reason: "photo-load-error",
-          previousIndex: current,
+          previousIndex: activeIndex,
           nextIndex,
           total: photos.length,
-          previousPhoto: photos[current] ? displayPhotoSrc(photos[current]) : "",
+          previousPhoto: photos[activeIndex] ? displayPhotoSrc(photos[activeIndex]) : "",
           nextPhoto: photos[nextIndex] ? displayPhotoSrc(photos[nextIndex]) : ""
         });
         activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
@@ -303,11 +307,11 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
         return nextIndex;
       });
     }
-  }, [photoIndex, photos]);
+  }, [currentPhotoIndex, photos, pinnedPhotoId]);
 
   return {
     activePhoto,
-    photoIndex,
+    photoIndex: currentPhotoIndex,
     manualPaused,
     setManualPaused,
     showPhotoAt,

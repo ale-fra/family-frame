@@ -37,6 +37,17 @@ export function normalizedSlideshowInterval(value: number) {
   return Math.max(5, Number.isFinite(value) ? value : defaultConfig.slideshow.intervalSeconds);
 }
 
+export function activePhotoIndex(current: number, photos: Photo[], pinnedPhotoId: string) {
+  if (photos.length === 0) return 0;
+
+  if (pinnedPhotoId) {
+    const pinnedIndex = photos.findIndex((photo) => photo.id === pinnedPhotoId);
+    if (pinnedIndex !== -1) return pinnedIndex;
+  }
+
+  return current >= 0 && current < photos.length ? current : 0;
+}
+
 export function samePhotoList(left: Photo[], right: Photo[]) {
   return left.length === right.length && left.every((photo, index) => photoSignature(photo) === photoSignature(right[index]));
 }
