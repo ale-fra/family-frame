@@ -24,7 +24,7 @@ export function PhotoStage({
 }) {
   const [photoAspect, setPhotoAspect] = React.useState(1);
   const activeSpecialDayEffects = new Set(activeSpecialDay?.effects || []);
-  const photoBox = containedBox(photoStageSize.width - 28, photoStageSize.height - 28, photoAspect);
+  const photoBox = containedBox(photoStageSize.width, photoStageSize.height, photoAspect);
 
   return (
     <section className="photo-stage" ref={stageRef}>
