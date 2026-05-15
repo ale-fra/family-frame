@@ -22,38 +22,20 @@ export function PhotoStage({
 }) {
   const imageRef = React.useRef<HTMLImageElement | null>(null);
   const currentDisplaySrcRef = React.useRef("");
-  const decodeAttemptRef = React.useRef(0);
   const notifiedLoadedSrcRef = React.useRef("");
   const activeSpecialDayEffects = new Set(activeSpecialDay?.effects || []);
   const displaySrc = activePhoto ? displayPhotoSrc(activePhoto) : "";
   currentDisplaySrcRef.current = displaySrc;
-  const [loadedPhotoSrc, setLoadedPhotoSrc] = React.useState("");
-  const isCurrentPhotoReady = loadedPhotoSrc === displaySrc;
-
-  React.useEffect(() => {
-    decodeAttemptRef.current += 1;
-    setLoadedPhotoSrc((src) => (src === displaySrc ? src : ""));
-  }, [displaySrc]);
 
   const markPhotoLoaded = React.useCallback((photo: Photo, image: HTMLImageElement, src: string) => {
-    if (src !== displaySrc || displayPhotoSrc(photo) !== src) return;
+    if (src !== currentDisplaySrcRef.current || displayPhotoSrc(photo) !== src) return;
+    if (imageRef.current !== image) return;
     if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
 
-    const decodeAttempt = ++decodeAttemptRef.current;
-    void waitForDecodedImage(image).then((decoded) => {
-      if (!decoded) return;
-      if (decodeAttemptRef.current !== decodeAttempt) return;
-      if (currentDisplaySrcRef.current !== src || imageRef.current !== image) return;
-      if (displayPhotoSrc(photo) !== src) return;
-      if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
-
-      setLoadedPhotoSrc(src);
-
-      if (notifiedLoadedSrcRef.current === src) return;
-      notifiedLoadedSrcRef.current = src;
-      onPhotoLoaded(photo, image);
-    });
-  }, [displaySrc, onPhotoLoaded]);
+    if (notifiedLoadedSrcRef.current === src) return;
+    notifiedLoadedSrcRef.current = src;
+    onPhotoLoaded(photo, image);
+  }, [onPhotoLoaded]);
 
   React.useEffect(() => {
     const image = imageRef.current;
@@ -71,9 +53,7 @@ export function PhotoStage({
             style={{ backgroundImage: `url(${displaySrc})` }}
           />
           <div className="photo-stage-vignette" />
-          <div
-            className={`photo-wrap${isCurrentPhotoReady ? "" : " is-loading"}`}
-          >
+          <div className="photo-wrap">
             <img
               ref={imageRef}
               key={displaySrc}
@@ -98,21 +78,4 @@ export function PhotoStage({
       )}
     </section>
   );
-}
-
-async function waitForDecodedImage(image: HTMLImageElement) {
-  if (typeof image.decode === "function") {
-    try {
-      await image.decode();
-    } catch {
-      if (!image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return false;
-    }
-  }
-
-  await new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => resolve());
-    });
-  });
-  return true;
 }

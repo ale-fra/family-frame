@@ -57,6 +57,13 @@ describe("photo slideshow logic", () => {
     })).toBe("/portrait.jpg");
   });
 
+  it("keeps the original source when optimized metadata is missing", () => {
+    expect(displayPhotoSrc({
+      src: "/original.jpg",
+      optimizedSrc: "/unknown-mode.webp"
+    })).toBe("/original.jpg");
+  });
+
   it("normalizes short slideshow intervals", () => {
     expect(normalizedSlideshowInterval(1)).toBe(5);
   });
