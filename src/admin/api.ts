@@ -82,6 +82,7 @@ export type AdminSettingsBundle = {
   calendarSources: CalendarSource[];
   importantKeywords: string[];
   nightDisplay: NightDisplaySettings;
+  pinnedPhotoId: string;
   specialDayEvents: SpecialDayConfig[];
   disabledSpecialDayIds: string[];
 };
@@ -108,6 +109,7 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
       importantKeywords:
         settings.calendar?.importantKeywords || baseConfig.calendar.importantKeywords,
       nightDisplay: settings.display?.nightMode || defaultNightDisplaySettings,
+      pinnedPhotoId: settings.slideshow?.pinnedPhotoId || "",
       specialDayEvents: settings.specialDays?.events || baseConfig.specialDays.events,
       disabledSpecialDayIds: settings.specialDays?.disabledIds || []
     };
@@ -118,6 +120,7 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
       calendarSources: baseConfig.calendar.sources || [],
       importantKeywords: baseConfig.calendar.importantKeywords,
       nightDisplay: defaultNightDisplaySettings,
+      pinnedPhotoId: "",
       specialDayEvents: baseConfig.specialDays.events,
       disabledSpecialDayIds: []
     };
@@ -149,6 +152,23 @@ export async function saveAdminSettings(
           events: payload.specialDayEvents
         },
         ...(payload.nightDisplay ? { display: { nightMode: payload.nightDisplay } } : {})
+      })
+    },
+    pin
+  );
+  return (await response.json()) as FrameSettings;
+}
+
+export async function setPinnedPhoto(pin: string, photoId: string): Promise<FrameSettings> {
+  const response = await request(
+    "/api/admin/settings",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        slideshow: {
+          pinnedPhotoId: photoId
+        }
       })
     },
     pin

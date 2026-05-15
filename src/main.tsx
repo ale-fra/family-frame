@@ -44,6 +44,29 @@ type CalendarEvent = {
   important: boolean;
 };
 
+type FamilyFrameDebugApi = {
+  pause: () => void;
+  play: () => void;
+  resume: () => void;
+  next: () => Photo | null;
+  previous: () => Photo | null;
+  show: (target: number | string) => Photo | null;
+  status: () => {
+    paused: boolean;
+    pinnedPhotoId: string;
+    index: number;
+    total: number;
+    photo: Photo | null;
+  };
+  photos: () => Photo[];
+};
+
+declare global {
+  interface Window {
+    familyFrame?: FamilyFrameDebugApi;
+  }
+}
+
 function Root() {
   if (window.location.pathname.startsWith("/admin")) {
     return (
@@ -60,6 +83,7 @@ function FrameApp() {
   const [config, setConfig] = React.useState<FrameConfig>(defaultConfig);
   const [photos, setPhotos] = React.useState<Photo[]>([]);
   const [photoIndex, setPhotoIndex] = React.useState(0);
+  const [manualPaused, setManualPaused] = React.useState(false);
   const [photoAspect, setPhotoAspect] = React.useState(1);
   const [photoStageSize, setPhotoStageSize] = React.useState({ width: 0, height: 0 });
   const [weather, setWeather] = React.useState<WeatherState>({ forecast: [] });
@@ -68,6 +92,29 @@ function FrameApp() {
   const [specialDayPulse, setSpecialDayPulse] = React.useState(0);
   const photoStageRef = React.useRef<HTMLElement | null>(null);
   const shuffleQueueRef = React.useRef<number[]>([]);
+  const pinnedPhotoId = config.slideshow.pinnedPhotoId || "";
+
+  const showPhotoAt = React.useCallback((index: number) => {
+    if (!Number.isInteger(index) || index < 0 || index >= photos.length) return null;
+    shuffleQueueRef.current = [];
+    setPhotoIndex(index);
+    return photos[index] || null;
+  }, [photos]);
+
+  const nextPhoto = React.useCallback(() => {
+    if (photos.length === 0) return null;
+    const nextIndex = nextPhotoIndex(photoIndex, photos.length, shuffleQueueRef);
+    setPhotoIndex(nextIndex);
+    return photos[nextIndex] || null;
+  }, [photoIndex, photos]);
+
+  const previousPhoto = React.useCallback(() => {
+    if (photos.length === 0) return null;
+    const previousIndex = photoIndex <= 0 ? photos.length - 1 : photoIndex - 1;
+    shuffleQueueRef.current = [];
+    setPhotoIndex(previousIndex);
+    return photos[previousIndex] || null;
+  }, [photoIndex, photos]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -130,6 +177,14 @@ function FrameApp() {
   }, [photos]);
 
   React.useEffect(() => {
+    if (!pinnedPhotoId) return;
+    const pinnedIndex = photos.findIndex((photo) => photo.id === pinnedPhotoId);
+    if (pinnedIndex === -1) return;
+    shuffleQueueRef.current = [];
+    setPhotoIndex(pinnedIndex);
+  }, [photos, pinnedPhotoId]);
+
+  React.useEffect(() => {
     const element = photoStageRef.current;
     if (!element) return;
 
@@ -142,12 +197,41 @@ function FrameApp() {
   }, []);
 
   React.useEffect(() => {
-    if (photos.length < 2) return;
+    if (photos.length < 2 || manualPaused || pinnedPhotoId) return;
     const interval = window.setInterval(() => {
       setPhotoIndex((current) => nextPhotoIndex(current, photos.length, shuffleQueueRef));
     }, Math.max(5, config.slideshow.intervalSeconds) * 1000);
     return () => window.clearInterval(interval);
-  }, [config.slideshow.intervalSeconds, photos.length]);
+  }, [config.slideshow.intervalSeconds, manualPaused, photos.length, pinnedPhotoId]);
+
+  React.useEffect(() => {
+    const api: FamilyFrameDebugApi = {
+      pause: () => setManualPaused(true),
+      play: () => setManualPaused(false),
+      resume: () => setManualPaused(false),
+      next: nextPhoto,
+      previous: previousPhoto,
+      show: (target) => {
+        const index = typeof target === "number"
+          ? target
+          : photos.findIndex((photo) => photo.id === target || photo.src === target || photo.src.endsWith(target));
+        return showPhotoAt(index);
+      },
+      status: () => ({
+        paused: manualPaused,
+        pinnedPhotoId,
+        index: photoIndex,
+        total: photos.length,
+        photo: photos[photoIndex] || null
+      }),
+      photos: () => [...photos]
+    };
+
+    window.familyFrame = api;
+    return () => {
+      if (window.familyFrame === api) delete window.familyFrame;
+    };
+  }, [manualPaused, nextPhoto, photoIndex, photos, pinnedPhotoId, previousPhoto, showPhotoAt]);
 
   React.useEffect(() => {
     const updateClock = window.setInterval(() => setClock(new Date()), 30_000);

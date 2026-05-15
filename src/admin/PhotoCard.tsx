@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { photoStatusLabels } from "./labels";
 import { formatBytes, formatShortDate } from "@/lib/format";
-import { Check, EyeOff, MoreVertical, RotateCcw, Trash2 } from "lucide-react";
+import { Check, EyeOff, MoreVertical, Pin, PinOff, RotateCcw, Trash2 } from "lucide-react";
 
 const statusVariant: Record<PhotoStatus, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "outline",
@@ -22,14 +22,17 @@ const statusVariant: Record<PhotoStatus, "default" | "secondary" | "outline" | "
 
 type Props = {
   photo: AdminPhoto;
+  pinned: boolean;
   busy: boolean;
   onApprove: () => void;
   onHide: () => void;
   onTrash: () => void;
   onRestore: () => void;
+  onPin: () => void;
+  onUnpin: () => void;
 };
 
-export function PhotoCard({ photo, busy, onApprove, onHide, onTrash, onRestore }: Props) {
+export function PhotoCard({ photo, pinned, busy, onApprove, onHide, onTrash, onRestore, onPin, onUnpin }: Props) {
   return (
     <article className="group overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm transition-shadow hover:shadow-md">
       <div className="relative aspect-square overflow-hidden bg-muted">
@@ -41,7 +44,7 @@ export function PhotoCard({ photo, busy, onApprove, onHide, onTrash, onRestore }
         />
         <div className="absolute right-2 top-2">
           <Badge variant={statusVariant[photo.status]} className="shadow-md backdrop-blur">
-            {photoStatusLabels[photo.status]}
+            {pinned ? "Fissa" : photoStatusLabels[photo.status]}
           </Badge>
         </div>
       </div>
@@ -68,6 +71,19 @@ export function PhotoCard({ photo, busy, onApprove, onHide, onTrash, onRestore }
                 <Check className="mr-2 h-4 w-4" />
                 Approva
               </DropdownMenuItem>
+            )}
+            {photo.status === "approved" && (
+              pinned ? (
+                <DropdownMenuItem onClick={onUnpin}>
+                  <PinOff className="mr-2 h-4 w-4" />
+                  Rimuovi foto fissa
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={onPin}>
+                  <Pin className="mr-2 h-4 w-4" />
+                  Fissa nella cornice
+                </DropdownMenuItem>
+              )
             )}
             {photo.status !== "hidden" && photo.status !== "trashed" && (
               <DropdownMenuItem onClick={onHide}>

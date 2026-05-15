@@ -21,6 +21,7 @@ export type FrameConfig = {
   };
   slideshow: {
     intervalSeconds: number;
+    pinnedPhotoId?: string;
   };
   specialDays: {
     enabled: boolean;
@@ -43,6 +44,9 @@ export type FrameSettings = {
   specialDays?: {
     disabledIds?: string[];
     events?: SpecialDayConfig[];
+  };
+  slideshow?: {
+    pinnedPhotoId?: string;
   };
 };
 

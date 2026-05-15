@@ -24,6 +24,7 @@ import {
   loadPhotos,
   parseKeywordEditorValue,
   saveAdminSettings,
+  setPinnedPhoto,
   setDisplayPower,
   updatePhotoStatus,
   uploadPhotos
@@ -48,6 +49,7 @@ export default function AdminApp() {
   );
   const [disabledSpecialDayIds, setDisabledSpecialDayIds] = React.useState<string[]>([]);
   const [nightDisplay, setNightDisplay] = React.useState<NightDisplaySettings>(defaultNightDisplaySettings);
+  const [pinnedPhotoId, setPinnedPhotoId] = React.useState("");
 
   const handleUnauthorized = React.useCallback(() => {
     setNeedsPin(true);
@@ -82,6 +84,7 @@ export default function AdminApp() {
       setKeywordsText(bundle.importantKeywords.join("\n"));
       setDisabledSpecialDayIds(bundle.disabledSpecialDayIds);
       setNightDisplay(bundle.nightDisplay);
+      setPinnedPhotoId(bundle.pinnedPhotoId);
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         handleUnauthorized();
@@ -93,6 +96,7 @@ export default function AdminApp() {
       setSpecialDayEvents(defaultConfig.specialDays.events);
       setDisabledSpecialDayIds([]);
       setNightDisplay(defaultNightDisplaySettings);
+      setPinnedPhotoId("");
     }
   }, [pin, handleUnauthorized]);
 
@@ -148,7 +152,9 @@ export default function AdminApp() {
     if (!pin) return;
     setBusy(true);
     const previous = photos;
+    const previousPinnedPhotoId = pinnedPhotoId;
     setPhotos((current) => current.map((entry) => (entry.id === photo.id ? { ...entry, status } : entry)));
+    if (status !== "approved" && pinnedPhotoId === photo.id) setPinnedPhotoId("");
     try {
       await updatePhotoStatus(pin, photo.id, status);
       toast.success(`${photo.originalName}`, {
@@ -156,6 +162,30 @@ export default function AdminApp() {
       });
     } catch (error) {
       setPhotos(previous);
+      setPinnedPhotoId(previousPinnedPhotoId);
+      if (error instanceof UnauthorizedError) {
+        handleUnauthorized();
+        return;
+      }
+      toast.error("Aggiornamento non riuscito");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePinnedPhoto(photo: AdminPhoto, pinned: boolean) {
+    if (!pin) return;
+    setBusy(true);
+    const previousPinnedPhotoId = pinnedPhotoId;
+    setPinnedPhotoId(pinned ? photo.id : "");
+    try {
+      const settings = await setPinnedPhoto(pin, pinned ? photo.id : "");
+      setPinnedPhotoId(settings.slideshow?.pinnedPhotoId || "");
+      toast.success(pinned ? "Foto fissata nella cornice" : "Foto fissa rimossa", {
+        description: photo.originalName
+      });
+    } catch (error) {
+      setPinnedPhotoId(previousPinnedPhotoId);
       if (error instanceof UnauthorizedError) {
         handleUnauthorized();
         return;
@@ -318,6 +348,8 @@ export default function AdminApp() {
               busy={busy}
               onUpload={handleUpload}
               onUpdateStatus={handleUpdateStatus}
+              pinnedPhotoId={pinnedPhotoId}
+              onPinnedPhotoChange={handlePinnedPhoto}
             />
           ) : (
             <SettingsSection

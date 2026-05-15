@@ -114,7 +114,13 @@ export function mergeConfig(loadedConfig: Partial<FrameConfig>, settings: FrameS
       sources: Array.isArray(settings.calendar?.sources) ? settings.calendar.sources : mergedCalendar.sources,
       importantKeywords: Array.isArray(importantKeywords) ? importantKeywords : mergedCalendar.importantKeywords
     },
-    slideshow: { ...defaultConfig.slideshow, ...loadedConfig.slideshow },
+    slideshow: {
+      ...defaultConfig.slideshow,
+      ...loadedConfig.slideshow,
+      ...(settings.slideshow?.pinnedPhotoId !== undefined
+        ? { pinnedPhotoId: settings.slideshow.pinnedPhotoId }
+        : {})
+    },
     specialDays: {
       ...mergedSpecialDays,
       events: specialDayEvents.map((event) => ({

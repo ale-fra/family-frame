@@ -205,6 +205,7 @@ app.patch("/api/admin/photos/:id", requireAdmin, async (request, response) => {
   photo.status = nextStatus;
   photo.updatedAt = new Date().toISOString();
   await writeDb(db);
+  if (nextStatus !== "approved") await clearPinnedPhotoIfNeeded(photo.id);
   response.json({ photo });
 });
 
@@ -219,6 +220,7 @@ app.delete("/api/admin/photos/:id", requireAdmin, async (request, response) => {
   photo.status = "trashed";
   photo.updatedAt = new Date().toISOString();
   await writeDb(db);
+  await clearPinnedPhotoIfNeeded(photo.id);
   response.json({ photo });
 });
 
@@ -443,6 +445,14 @@ function normalizeSettings(payload) {
     settings.display = { nightMode: normalizedNightMode };
   }
 
+  const pinnedPhotoId = payload.slideshow?.pinnedPhotoId;
+  if (pinnedPhotoId !== undefined) {
+    if (pinnedPhotoId !== null && typeof pinnedPhotoId !== "string") return null;
+    settings.slideshow = {
+      pinnedPhotoId: typeof pinnedPhotoId === "string" ? pinnedPhotoId.trim() : ""
+    };
+  }
+
   return settings;
 }
 
@@ -458,11 +468,21 @@ function mergeSettings(currentSettings, nextSettings) {
       ...currentSettings.display,
       ...nextSettings.display
     },
+    slideshow: {
+      ...currentSettings.slideshow,
+      ...nextSettings.slideshow
+    },
     specialDays: {
       ...currentSettings.specialDays,
       ...nextSettings.specialDays
     }
   };
+}
+
+async function clearPinnedPhotoIfNeeded(photoId) {
+  const settings = await readSettings();
+  if (settings.slideshow?.pinnedPhotoId !== photoId) return;
+  await writeSettings(mergeSettings(settings, { slideshow: { pinnedPhotoId: "" } }));
 }
 
 function normalizeStringList(values) {

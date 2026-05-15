@@ -16,6 +16,8 @@ type Props = {
   busy: boolean;
   onUpload: (files: File[]) => void;
   onUpdateStatus: (photo: AdminPhoto, status: PhotoStatus) => void;
+  pinnedPhotoId: string;
+  onPinnedPhotoChange: (photo: AdminPhoto, pinned: boolean) => void;
 };
 
 export function PhotosSection({
@@ -25,7 +27,9 @@ export function PhotosSection({
   onTabChange,
   busy,
   onUpload,
-  onUpdateStatus
+  onUpdateStatus,
+  pinnedPhotoId,
+  onPinnedPhotoChange
 }: Props) {
   const visible = photos.filter((photo) => photo.status === activeTab);
 
@@ -74,11 +78,14 @@ export function PhotosSection({
                 <PhotoCard
                   key={photo.id}
                   photo={photo}
+                  pinned={pinnedPhotoId === photo.id}
                   busy={busy}
                   onApprove={() => onUpdateStatus(photo, "approved")}
                   onHide={() => onUpdateStatus(photo, "hidden")}
                   onTrash={() => onUpdateStatus(photo, "trashed")}
                   onRestore={() => onUpdateStatus(photo, "hidden")}
+                  onPin={() => onPinnedPhotoChange(photo, true)}
+                  onUnpin={() => onPinnedPhotoChange(photo, false)}
                 />
               ))}
             </div>
