@@ -13,8 +13,10 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
   const [photoIndex, setPhotoIndex] = React.useState(0);
   const [manualPaused, setManualPaused] = React.useState(false);
   const [loadedPhotoKey, setLoadedPhotoKey] = React.useState("");
+  const [preparedPhotoRevision, setPreparedPhotoRevision] = React.useState(0);
   const shuffleQueueRef = React.useRef<number[]>([]);
   const failedPhotoKeysRef = React.useRef<Set<string>>(new Set());
+  const preparedPhotoRef = React.useRef<PreparedPhoto | null>(null);
   const activePhotoKeyRef = React.useRef("");
   const photoListSignatureRef = React.useRef("");
   const photoListCountRef = React.useRef(0);
@@ -22,36 +24,48 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
   const slideshowIntervalSeconds = normalizedSlideshowInterval(intervalSeconds);
   const activePhoto = photos[photoIndex];
 
+  const clearPreparedPhoto = React.useCallback(() => {
+    releasePreparedPhoto(preparedPhotoRef.current);
+    preparedPhotoRef.current = null;
+  }, []);
+
   const showPhotoAt = React.useCallback((index: number) => {
     if (!Number.isInteger(index) || index < 0 || index >= photos.length) return null;
     shuffleQueueRef.current = [];
+    clearPreparedPhoto();
     activePhotoKeyRef.current = photoKey(photos[index]);
     activePhotoSelectedAtRef.current = Date.now();
     setPhotoIndex(index);
     return photos[index] || null;
-  }, [photos]);
+  }, [clearPreparedPhoto, photos]);
 
   const nextPhoto = React.useCallback(() => {
     if (photos.length === 0) return null;
-    const nextIndex = nextDisplayablePhotoIndex(photoIndex, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
+    const preparedPhoto = validPreparedPhoto(preparedPhotoRef.current, photos, photos[photoIndex]);
+    const nextIndex = preparedPhoto?.status === "ready"
+      ? preparedPhoto.index
+      : nextDisplayablePhotoIndex(photoIndex, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
+    clearPreparedPhoto();
     activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
     activePhotoSelectedAtRef.current = Date.now();
     setPhotoIndex(nextIndex);
     return photos[nextIndex] || null;
-  }, [photoIndex, photos]);
+  }, [clearPreparedPhoto, photoIndex, photos]);
 
   const previousPhoto = React.useCallback(() => {
     if (photos.length === 0) return null;
     const previousIndex = photoIndex <= 0 ? photos.length - 1 : photoIndex - 1;
     shuffleQueueRef.current = [];
+    clearPreparedPhoto();
     activePhotoKeyRef.current = photos[previousIndex] ? photoKey(photos[previousIndex]) : "";
     activePhotoSelectedAtRef.current = Date.now();
     setPhotoIndex(previousIndex);
     return photos[previousIndex] || null;
-  }, [photoIndex, photos]);
+  }, [clearPreparedPhoto, photoIndex, photos]);
 
   React.useEffect(() => {
     syncFailedPhotoKeys(failedPhotoKeysRef.current, photos);
+    clearPreparedPhoto();
     const signature = photos.map(photoSignature).join("\u0001");
     if (photoListSignatureRef.current !== signature) {
       logFrameEvent(photoListSignatureRef.current ? "photo-list-changed" : "photo-list-loaded", {
@@ -80,25 +94,113 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
       if (nextIndex !== current) activePhotoSelectedAtRef.current = Date.now();
       return nextIndex;
     });
-  }, [photos]);
+  }, [clearPreparedPhoto, photos]);
 
   React.useEffect(() => {
     if (!pinnedPhotoId) return;
     const pinnedIndex = photos.findIndex((photo) => photo.id === pinnedPhotoId);
     if (pinnedIndex === -1) return;
     shuffleQueueRef.current = [];
+    clearPreparedPhoto();
     activePhotoKeyRef.current = photoKey(photos[pinnedIndex]);
     activePhotoSelectedAtRef.current = Date.now();
     setPhotoIndex(pinnedIndex);
-  }, [photos, pinnedPhotoId]);
+  }, [clearPreparedPhoto, photos, pinnedPhotoId]);
+
+  React.useEffect(() => {
+    if (!activePhoto || photos.length < 2 || manualPaused || pinnedPhotoId) {
+      clearPreparedPhoto();
+      return;
+    }
+    if (loadedPhotoKey !== photoKey(activePhoto)) return;
+
+    const preparedPhoto = validPreparedPhoto(preparedPhotoRef.current, photos, activePhoto);
+    if (preparedPhoto) return;
+
+    const nextIndex = nextDisplayablePhotoIndex(photoIndex, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
+    const nextPhoto = photos[nextIndex];
+    if (!nextPhoto || nextIndex === photoIndex) return;
+
+    const nextKey = photoKey(nextPhoto);
+    const prepared: PreparedPhoto = {
+      image: new Image(),
+      index: nextIndex,
+      key: nextKey,
+      src: nextPhoto.src,
+      status: "loading",
+      startedAt: Date.now()
+    };
+    preparedPhotoRef.current = prepared;
+
+    const markReady = () => {
+      if (preparedPhotoRef.current !== prepared) return;
+      if (prepared.status !== "loading") return;
+      prepared.status = "ready";
+      logFrameEvent("photo-preloaded", {
+        index: nextIndex,
+        total: photos.length,
+        photoId: nextPhoto.id || "",
+        src: nextPhoto.src,
+        naturalWidth: prepared.image.naturalWidth,
+        naturalHeight: prepared.image.naturalHeight,
+        elapsedMs: Date.now() - prepared.startedAt,
+        visibilityState: document.visibilityState
+      });
+      setPreparedPhotoRevision((revision) => revision + 1);
+    };
+
+    const markFailed = () => {
+      if (preparedPhotoRef.current !== prepared) return;
+      if (prepared.status !== "loading") return;
+      prepared.status = "error";
+      failedPhotoKeysRef.current.add(nextKey);
+      logFrameEvent("photo-preload-error", {
+        index: nextIndex,
+        total: photos.length,
+        photoId: nextPhoto.id || "",
+        src: nextPhoto.src,
+        caption: nextPhoto.caption || ""
+      });
+      releasePreparedPhoto(prepared);
+      preparedPhotoRef.current = null;
+      setPreparedPhotoRevision((revision) => revision + 1);
+    };
+
+    prepared.image.onload = markReady;
+    prepared.image.onerror = markFailed;
+    prepared.image.decoding = "async";
+    prepared.image.src = nextPhoto.src;
+    if (typeof prepared.image.decode === "function") {
+      prepared.image.decode().then(markReady).catch(markFailed);
+    }
+  }, [
+    activePhoto,
+    clearPreparedPhoto,
+    loadedPhotoKey,
+    manualPaused,
+    photoIndex,
+    photos,
+    pinnedPhotoId,
+    preparedPhotoRevision
+  ]);
 
   React.useEffect(() => {
     if (!activePhoto || photos.length < 2 || manualPaused || pinnedPhotoId) return;
     if (loadedPhotoKey !== photoKey(activePhoto)) return;
 
-    const timeout = window.setTimeout(() => {
+    const timeouts: number[] = [];
+    const advanceWhenPrepared = () => {
+      const preparedPhoto = validPreparedPhoto(preparedPhotoRef.current, photos, photos[photoIndex]);
+      if (!preparedPhoto || preparedPhoto.status !== "ready") {
+        timeouts.push(window.setTimeout(advanceWhenPrepared, 100));
+        return;
+      }
+
       setPhotoIndex((current) => {
-        const nextIndex = nextDisplayablePhotoIndex(current, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
+        const stillPrepared = validPreparedPhoto(preparedPhotoRef.current, photos, photos[current]);
+        const nextIndex = stillPrepared?.status === "ready"
+          ? stillPrepared.index
+          : nextDisplayablePhotoIndex(current, photos, shuffleQueueRef.current, failedPhotoKeysRef.current);
         logFrameEvent("slideshow-advance", {
           reason: "timer",
           previousIndex: current,
@@ -110,11 +212,25 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
         });
         activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
         if (nextIndex !== current) activePhotoSelectedAtRef.current = Date.now();
+        clearPreparedPhoto();
         return nextIndex;
       });
-    }, slideshowIntervalSeconds * 1000);
-    return () => window.clearTimeout(timeout);
-  }, [activePhoto, loadedPhotoKey, manualPaused, photos, pinnedPhotoId, slideshowIntervalSeconds]);
+    };
+
+    timeouts.push(window.setTimeout(advanceWhenPrepared, slideshowIntervalSeconds * 1000));
+    return () => {
+      for (const timeout of timeouts) window.clearTimeout(timeout);
+    };
+  }, [
+    activePhoto,
+    clearPreparedPhoto,
+    loadedPhotoKey,
+    manualPaused,
+    photoIndex,
+    photos,
+    pinnedPhotoId,
+    slideshowIntervalSeconds
+  ]);
 
   React.useEffect(() => {
     if (!activePhoto) return;
@@ -219,4 +335,28 @@ function imageVisibilityDetails(image: HTMLImageElement): Record<string, string 
     currentSrc: image.currentSrc,
     topElementClass: topElement instanceof HTMLElement ? topElement.className : ""
   };
+}
+
+type PreparedPhoto = {
+  image: HTMLImageElement;
+  index: number;
+  key: string;
+  src: string;
+  status: "loading" | "ready" | "error";
+  startedAt: number;
+};
+
+function validPreparedPhoto(preparedPhoto: PreparedPhoto | null, photos: Photo[], activePhoto?: Photo) {
+  if (!preparedPhoto) return null;
+  if (activePhoto && preparedPhoto.key === photoKey(activePhoto)) return null;
+  const photo = photos[preparedPhoto.index];
+  if (!photo || photoKey(photo) !== preparedPhoto.key || photo.src !== preparedPhoto.src) return null;
+  return preparedPhoto;
+}
+
+function releasePreparedPhoto(preparedPhoto: PreparedPhoto | null) {
+  if (!preparedPhoto) return;
+  preparedPhoto.image.onload = null;
+  preparedPhoto.image.onerror = null;
+  if (preparedPhoto.status === "loading") preparedPhoto.image.src = "";
 }
