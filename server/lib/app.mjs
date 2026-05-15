@@ -217,7 +217,13 @@ export function createPhotoServerApp({
       response.json({ photo, photos });
     } catch (error) {
       const statusCode = error.statusCode || 500;
-      if (statusCode >= 500) console.error("Photo optimization failed:", error.message);
+      if (statusCode >= 500) {
+        console.error("Photo optimization failed:", {
+          photoId: request.params.id,
+          message: error.message,
+          stack: error.stack
+        });
+      }
       response.status(statusCode).json({ error: error.message || "Photo optimization failed" });
     }
   });

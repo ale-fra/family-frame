@@ -14,6 +14,15 @@ export class UnauthorizedError extends Error {
   }
 }
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public status: number
+  ) {
+    super(message);
+  }
+}
+
 export function authHeaders(pin: string): Record<string, string> {
   return pin ? { "x-frame-admin-pin": pin } : {};
 }
@@ -35,7 +44,16 @@ async function request(input: string, init: RequestInit, pin: string) {
     headers: { ...(init.headers || {}), ...authHeaders(pin) }
   });
   if (response.status === 401) throw new UnauthorizedError();
-  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  if (!response.ok) {
+    let message = `Request failed: ${response.status}`;
+    try {
+      const payload = await response.json() as { error?: string };
+      if (payload.error) message = payload.error;
+    } catch {
+      // Keep the generic HTTP error when the response is not JSON.
+    }
+    throw new ApiRequestError(message, response.status);
+  }
   return response;
 }
 

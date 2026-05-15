@@ -19,6 +19,7 @@ import { PhotosSection } from "./PhotosSection";
 import { SettingsSection } from "./SettingsSection";
 import { countPhotos, type AdminSection } from "./labels";
 import {
+  ApiRequestError,
   UnauthorizedError,
   defaultNightDisplaySettings,
   loadAdminSettings,
@@ -214,7 +215,9 @@ export default function AdminApp() {
         handleUnauthorized();
         return false;
       }
-      toast.error("Ottimizzazione non riuscita");
+      toast.error("Ottimizzazione non riuscita", {
+        description: error instanceof ApiRequestError ? error.message : undefined
+      });
       return false;
     } finally {
       setBusy(false);
@@ -234,7 +237,9 @@ export default function AdminApp() {
         handleUnauthorized();
         return false;
       }
-      toast.error("Rimozione non riuscita");
+      toast.error("Rimozione non riuscita", {
+        description: error instanceof ApiRequestError ? error.message : undefined
+      });
       return false;
     } finally {
       setBusy(false);

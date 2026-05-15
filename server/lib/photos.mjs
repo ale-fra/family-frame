@@ -110,8 +110,10 @@ export function createPhotoStore(runtime, settingsStore) {
     await ensureReadableFile(sourcePath);
     await fs.mkdir(runtime.optimizedPhotoDir, { recursive: true });
 
-    const source = sharp(sourcePath, { animated: false }).rotate();
-    const metadata = await source.clone().metadata();
+    const orientedSource = await sharp(sourcePath, { animated: false, pages: 1 })
+      .rotate()
+      .toBuffer();
+    const metadata = await sharp(orientedSource).metadata();
     const sourceWidth = metadata.width || 0;
     const sourceHeight = metadata.height || 0;
     if (sourceWidth <= 0 || sourceHeight <= 0) {
@@ -125,15 +127,13 @@ export function createPhotoStore(runtime, settingsStore) {
     const thumbPath = path.join(runtime.optimizedPhotoDir, thumbFilename);
 
     if (mode === "cover") {
-      await source
-        .clone()
+      await sharp(orientedSource)
         .extract(crop)
         .resize(optimizedWidth, optimizedHeight, { fit: "fill" })
         .webp({ quality })
         .toFile(optimizedPath);
     } else {
-      const background = await source
-        .clone()
+      const background = await sharp(orientedSource)
         .resize(optimizedWidth, optimizedHeight, { fit: "cover" })
         .blur(36)
         .modulate({ brightness: 1.05, saturation: 1.05 })
@@ -146,8 +146,7 @@ export function createPhotoStore(runtime, settingsStore) {
           background: { r: 248, g: 244, b: 235, alpha: 0.34 }
         }
       }).png().toBuffer();
-      const foreground = await source
-        .clone()
+      const foreground = await sharp(orientedSource)
         .resize(optimizedWidth, optimizedHeight, { fit: "inside" })
         .toBuffer();
 
