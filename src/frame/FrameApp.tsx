@@ -6,7 +6,6 @@ import { useCalendarEvents } from "./hooks/useCalendarEvents";
 import { useClock } from "./hooks/useClock";
 import { useFrameConfig } from "./hooks/useFrameConfig";
 import { usePhotos } from "./hooks/usePhotos";
-import { usePhotoStageSize } from "./hooks/usePhotoStageSize";
 import { useSlideshow } from "./hooks/useSlideshow";
 import { useSpecialDayPulse } from "./hooks/useSpecialDayPulse";
 import { useWeather } from "./hooks/useWeather";
@@ -24,7 +23,7 @@ export function FrameApp() {
   const photos = usePhotos(config.photoManifestUrl);
   const pinnedPhotoId = config.slideshow.pinnedPhotoId || "";
   const slideshow = useSlideshow(photos, config.slideshow.intervalSeconds, pinnedPhotoId);
-  const { photoStageRef, photoStageSize } = usePhotoStageSize();
+  const photoStageRef = React.useRef<HTMLElement | null>(null);
   const weather = useWeather(config.weather);
   const events = useCalendarEvents(config.calendar);
   const clock = useClock();
@@ -76,7 +75,6 @@ export function FrameApp() {
         stageRef={photoStageRef}
         activePhoto={slideshow.activePhoto}
         frameName={config.frameName}
-        photoStageSize={photoStageSize}
         activeSpecialDay={activeSpecialDay}
         specialDayPulse={specialDayPulse}
         onPhotoLoaded={slideshow.handlePhotoLoaded}

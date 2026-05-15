@@ -74,10 +74,13 @@ body:has(.admin-shell) {
 }
 
 .photo-wrap {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 2;
   display: grid;
   place-items: center;
+  min-width: 0;
+  min-height: 0;
 }
 
 .photo-wrap.is-loading {
@@ -89,6 +92,7 @@ body:has(.admin-shell) {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  display: block;
   border-radius: 4px;
 }
 

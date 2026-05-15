@@ -1,6 +1,5 @@
 import * as React from "react";
 import type { Photo, SpecialDayConfig } from "@/lib/types";
-import { containedBox } from "../lib/layout";
 import { displayPhotoSrc } from "../lib/photoLogic";
 import { PhotoFrameFlowers, SpecialDayLayer } from "./SpecialDayLayer";
 
@@ -8,7 +7,6 @@ export function PhotoStage({
   stageRef,
   activePhoto,
   frameName,
-  photoStageSize,
   activeSpecialDay,
   specialDayPulse,
   onPhotoLoaded,
@@ -17,16 +15,11 @@ export function PhotoStage({
   stageRef: React.Ref<HTMLElement>;
   activePhoto?: Photo;
   frameName: string;
-  photoStageSize: { width: number; height: number };
   activeSpecialDay?: SpecialDayConfig;
   specialDayPulse: number;
   onPhotoLoaded: (photo: Photo, image: HTMLImageElement) => void;
   onPhotoError: (photo: Photo) => void;
 }) {
-  const [loadedPhotoGeometry, setLoadedPhotoGeometry] = React.useState<{
-    src: string;
-    aspect: number;
-  } | null>(null);
   const imageRef = React.useRef<HTMLImageElement | null>(null);
   const currentDisplaySrcRef = React.useRef("");
   const decodeAttemptRef = React.useRef(0);
@@ -34,16 +27,12 @@ export function PhotoStage({
   const activeSpecialDayEffects = new Set(activeSpecialDay?.effects || []);
   const displaySrc = activePhoto ? displayPhotoSrc(activePhoto) : "";
   currentDisplaySrcRef.current = displaySrc;
-  const hasStageSize = photoStageSize.width > 0 && photoStageSize.height > 0;
-  const isCurrentPhotoLoaded = loadedPhotoGeometry?.src === displaySrc;
-  const isCurrentPhotoReady = isCurrentPhotoLoaded && hasStageSize;
-  const photoBox = isCurrentPhotoReady
-    ? containedBox(photoStageSize.width, photoStageSize.height, loadedPhotoGeometry.aspect)
-    : null;
+  const [loadedPhotoSrc, setLoadedPhotoSrc] = React.useState("");
+  const isCurrentPhotoReady = loadedPhotoSrc === displaySrc;
 
   React.useEffect(() => {
     decodeAttemptRef.current += 1;
-    setLoadedPhotoGeometry((geometry) => (geometry?.src === displaySrc ? geometry : null));
+    setLoadedPhotoSrc((src) => (src === displaySrc ? src : ""));
   }, [displaySrc]);
 
   const markPhotoLoaded = React.useCallback((photo: Photo, image: HTMLImageElement, src: string) => {
@@ -58,10 +47,7 @@ export function PhotoStage({
       if (displayPhotoSrc(photo) !== src) return;
       if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
 
-      setLoadedPhotoGeometry({
-        src,
-        aspect: image.naturalWidth / image.naturalHeight
-      });
+      setLoadedPhotoSrc(src);
 
       if (notifiedLoadedSrcRef.current === src) return;
       notifiedLoadedSrcRef.current = src;
@@ -87,7 +73,6 @@ export function PhotoStage({
           <div className="photo-stage-vignette" />
           <div
             className={`photo-wrap${isCurrentPhotoReady ? "" : " is-loading"}`}
-            style={photoBox ? { width: photoBox.width, height: photoBox.height } : undefined}
           >
             <img
               ref={imageRef}
