@@ -28,9 +28,12 @@ export function PhotoStage({
     aspect: number;
   } | null>(null);
   const imageRef = React.useRef<HTMLImageElement | null>(null);
+  const currentDisplaySrcRef = React.useRef("");
+  const decodeAttemptRef = React.useRef(0);
   const notifiedLoadedSrcRef = React.useRef("");
   const activeSpecialDayEffects = new Set(activeSpecialDay?.effects || []);
   const displaySrc = activePhoto ? displayPhotoSrc(activePhoto) : "";
+  currentDisplaySrcRef.current = displaySrc;
   const hasStageSize = photoStageSize.width > 0 && photoStageSize.height > 0;
   const isCurrentPhotoLoaded = loadedPhotoGeometry?.src === displaySrc;
   const isCurrentPhotoReady = isCurrentPhotoLoaded && hasStageSize;
@@ -39,6 +42,7 @@ export function PhotoStage({
     : null;
 
   React.useEffect(() => {
+    decodeAttemptRef.current += 1;
     setLoadedPhotoGeometry((geometry) => (geometry?.src === displaySrc ? geometry : null));
   }, [displaySrc]);
 
@@ -46,14 +50,23 @@ export function PhotoStage({
     if (src !== displaySrc || displayPhotoSrc(photo) !== src) return;
     if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
 
-    setLoadedPhotoGeometry({
-      src,
-      aspect: image.naturalWidth / image.naturalHeight
-    });
+    const decodeAttempt = ++decodeAttemptRef.current;
+    void waitForDecodedImage(image).then((decoded) => {
+      if (!decoded) return;
+      if (decodeAttemptRef.current !== decodeAttempt) return;
+      if (currentDisplaySrcRef.current !== src || imageRef.current !== image) return;
+      if (displayPhotoSrc(photo) !== src) return;
+      if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
 
-    if (notifiedLoadedSrcRef.current === src) return;
-    notifiedLoadedSrcRef.current = src;
-    onPhotoLoaded(photo, image);
+      setLoadedPhotoGeometry({
+        src,
+        aspect: image.naturalWidth / image.naturalHeight
+      });
+
+      if (notifiedLoadedSrcRef.current === src) return;
+      notifiedLoadedSrcRef.current = src;
+      onPhotoLoaded(photo, image);
+    });
   }, [displaySrc, onPhotoLoaded]);
 
   React.useEffect(() => {
@@ -82,7 +95,7 @@ export function PhotoStage({
               src={displaySrc}
               alt={activePhoto.caption || "Foto di famiglia"}
               loading="eager"
-              decoding="sync"
+              decoding="async"
               onLoad={(event) => {
                 markPhotoLoaded(activePhoto, event.currentTarget, displaySrc);
               }}
@@ -100,4 +113,21 @@ export function PhotoStage({
       )}
     </section>
   );
+}
+
+async function waitForDecodedImage(image: HTMLImageElement) {
+  if (typeof image.decode === "function") {
+    try {
+      await image.decode();
+    } catch {
+      if (!image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return false;
+    }
+  }
+
+  await new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
+  return true;
 }
