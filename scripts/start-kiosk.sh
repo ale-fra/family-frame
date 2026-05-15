@@ -16,6 +16,8 @@ PHOTO_API_URL="${FRAME_PHOTO_API_URL:-http://127.0.0.1:8787/api/health}"
 CHROMIUM_LOG="${FRAME_CHROMIUM_LOG:-/tmp/family-frame-chromium.log}"
 REPLACE_EXISTING_KIOSK="${FRAME_KIOSK_REPLACE_EXISTING:-0}"
 CLEANUP_ON_EXIT="${FRAME_KIOSK_CLEANUP_ON_EXIT:-0}"
+REMOTE_DEBUGGING_ADDRESS="${FRAME_REMOTE_DEBUGGING_ADDRESS:-127.0.0.1}"
+REMOTE_DEBUGGING_PORT="${FRAME_REMOTE_DEBUGGING_PORT:-9222}"
 
 if ! command -v "$CHROMIUM_BIN" >/dev/null 2>&1; then
   echo "Chromium was not found. Install Chromium or set up another kiosk browser." >&2
@@ -91,6 +93,7 @@ fi
 mkdir -p "$CHROMIUM_PROFILE"
 echo "Using Chromium profile: $CHROMIUM_PROFILE"
 echo "Chromium logs: $CHROMIUM_LOG"
+echo "Chromium remote debugging: ${REMOTE_DEBUGGING_ADDRESS}:${REMOTE_DEBUGGING_PORT}"
 
 KIOSK_PATTERN="--user-data-dir=$CHROMIUM_PROFILE"
 
@@ -176,6 +179,8 @@ CHROMIUM_ARGS=(
   --metrics-recording-only \
   --no-first-run \
   --check-for-update-interval=31536000 \
+  "--remote-debugging-address=$REMOTE_DEBUGGING_ADDRESS" \
+  "--remote-debugging-port=$REMOTE_DEBUGGING_PORT" \
   "${WINDOW_ARGS[@]}" \
   "$KIOSK_URL"
 )
