@@ -343,6 +343,8 @@ function normalizeClientLogEntry(payload) {
   return {
     timestamp: new Date().toISOString(),
     event,
+    clientId: sanitizeLogString(payload.clientId, 80),
+    bootId: sanitizeLogString(payload.bootId, 80),
     path: sanitizeLogString(payload.path, 160),
     userAgent: sanitizeLogString(payload.userAgent, 220),
     details: sanitizeLogDetails(payload.details)

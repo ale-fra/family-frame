@@ -96,14 +96,26 @@ function FrameApp() {
   const activePhotoKeyRef = React.useRef("");
   const photoListSignatureRef = React.useRef("");
   const photoListCountRef = React.useRef(0);
+  const activePhotoSelectedAtRef = React.useRef(Date.now());
   const pinnedPhotoId = config.slideshow.pinnedPhotoId || "";
   const activePhoto = photos[photoIndex];
   const slideshowIntervalSeconds = normalizedSlideshowInterval(config.slideshow.intervalSeconds);
+
+  React.useEffect(() => {
+    logFrameEvent("frame-app-start", {
+      screenWidth: window.screen.width,
+      screenHeight: window.screen.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      visibilityState: document.visibilityState
+    });
+  }, []);
 
   const showPhotoAt = React.useCallback((index: number) => {
     if (!Number.isInteger(index) || index < 0 || index >= photos.length) return null;
     shuffleQueueRef.current = [];
     activePhotoKeyRef.current = photoKey(photos[index]);
+    activePhotoSelectedAtRef.current = Date.now();
     setPhotoIndex(index);
     return photos[index] || null;
   }, [photos]);
@@ -112,6 +124,7 @@ function FrameApp() {
     if (photos.length === 0) return null;
     const nextIndex = nextDisplayablePhotoIndex(photoIndex, photos, shuffleQueueRef, failedPhotoKeysRef);
     activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
+    activePhotoSelectedAtRef.current = Date.now();
     setPhotoIndex(nextIndex);
     return photos[nextIndex] || null;
   }, [photoIndex, photos]);
@@ -121,6 +134,7 @@ function FrameApp() {
     const previousIndex = photoIndex <= 0 ? photos.length - 1 : photoIndex - 1;
     shuffleQueueRef.current = [];
     activePhotoKeyRef.current = photos[previousIndex] ? photoKey(photos[previousIndex]) : "";
+    activePhotoSelectedAtRef.current = Date.now();
     setPhotoIndex(previousIndex);
     return photos[previousIndex] || null;
   }, [photoIndex, photos]);
@@ -215,6 +229,7 @@ function FrameApp() {
 
       const nextIndex = current >= photos.length ? 0 : current;
       activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
+      if (nextIndex !== current) activePhotoSelectedAtRef.current = Date.now();
       return nextIndex;
     });
   }, [photos]);
@@ -225,6 +240,7 @@ function FrameApp() {
     if (pinnedIndex === -1) return;
     shuffleQueueRef.current = [];
     activePhotoKeyRef.current = photoKey(photos[pinnedIndex]);
+    activePhotoSelectedAtRef.current = Date.now();
     setPhotoIndex(pinnedIndex);
   }, [photos, pinnedPhotoId]);
 
@@ -255,6 +271,7 @@ function FrameApp() {
           nextPhoto: photos[nextIndex]?.src || ""
         });
         activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
+        if (nextIndex !== current) activePhotoSelectedAtRef.current = Date.now();
         return nextIndex;
       });
     }, slideshowIntervalSeconds * 1000);
@@ -289,6 +306,18 @@ function FrameApp() {
       if (window.familyFrame === api) delete window.familyFrame;
     };
   }, [manualPaused, nextPhoto, photoIndex, photos, pinnedPhotoId, previousPhoto, showPhotoAt]);
+
+  React.useEffect(() => {
+    if (!activePhoto) return;
+    logFrameEvent("photo-selected", {
+      index: photoIndex,
+      total: photos.length,
+      photoId: activePhoto.id || "",
+      src: activePhoto.src,
+      caption: activePhoto.caption || "",
+      visibilityState: document.visibilityState
+    });
+  }, [activePhoto, photoIndex, photos.length]);
 
   React.useEffect(() => {
     const updateClock = window.setInterval(() => setClock(new Date()), 30_000);
@@ -431,6 +460,16 @@ function FrameApp() {
                     setPhotoAspect(image.naturalWidth / image.naturalHeight);
                     activePhotoKeyRef.current = photoKey(activePhoto);
                     failedPhotoKeysRef.current.delete(photoKey(activePhoto));
+                    logFrameEvent("photo-loaded", {
+                      index: photoIndex,
+                      total: photos.length,
+                      photoId: activePhoto.id || "",
+                      src: activePhoto.src,
+                      naturalWidth: image.naturalWidth,
+                      naturalHeight: image.naturalHeight,
+                      elapsedMs: Date.now() - activePhotoSelectedAtRef.current,
+                      visibilityState: document.visibilityState
+                    });
                   }
                 }}
                 onError={() => {
@@ -455,6 +494,7 @@ function FrameApp() {
                         nextPhoto: photos[nextIndex]?.src || ""
                       });
                       activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
+                      if (nextIndex !== current) activePhotoSelectedAtRef.current = Date.now();
                       return nextIndex;
                     });
                   }
@@ -858,6 +898,8 @@ function syncFailedPhotoKeys(failedKeys: Set<string>, photos: Photo[]) {
 function logFrameEvent(event: string, details: Record<string, string | number | boolean | null>) {
   const payload = {
     event,
+    clientId: frameClientId(),
+    bootId: frameBootId(),
     path: window.location.pathname,
     userAgent: navigator.userAgent,
     details
@@ -871,6 +913,30 @@ function logFrameEvent(event: string, details: Record<string, string | number | 
   }).catch(() => {
     // The frame should keep running even when the local photo server is unavailable.
   });
+}
+
+function frameClientId() {
+  return storedFrameId("family-frame-client-id");
+}
+
+function frameBootId() {
+  const frameWindow = window as Window & { __familyFrameBootId?: string };
+  if (!frameWindow.__familyFrameBootId) {
+    frameWindow.__familyFrameBootId = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+  }
+  return frameWindow.__familyFrameBootId;
+}
+
+function storedFrameId(key: string) {
+  try {
+    const current = window.sessionStorage.getItem(key);
+    if (current) return current;
+    const next = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+    window.sessionStorage.setItem(key, next);
+    return next;
+  } catch {
+    return "session-storage-unavailable";
+  }
 }
 
 function shuffle(values: number[]) {
