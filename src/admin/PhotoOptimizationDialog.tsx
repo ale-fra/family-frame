@@ -129,7 +129,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
               </Button>
             </div>
 
-            <div className="relative mx-auto aspect-[4/3] max-h-[min(68dvh,720px)] w-full overflow-hidden rounded-lg border border-border bg-[#f8f4eb] shadow-sm">
+            <div className="relative mx-auto aspect-[4/3] w-full max-w-5xl overflow-hidden rounded-lg border border-border bg-[#f8f4eb] shadow-sm">
               {mode === "cover" ? (
                 <Cropper
                   key={`${photo.id}-${resetKey}`}
@@ -154,7 +154,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
                   <img
                     src={sourceSrc}
                     alt={photo.originalName}
-                    className="relative z-10 h-full w-full object-contain p-2"
+                    className="relative z-10 h-full w-full object-contain"
                   />
                 </>
               )}
@@ -207,7 +207,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
             <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground">Output</p>
-                <p className="font-medium">1440x1080 WebP</p>
+                <p className="font-medium">Max 1440x1080</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Cornice</p>

@@ -68,7 +68,7 @@ describe("photo optimization API", () => {
   });
 
   it("generates and removes an optimized WebP derivative", async () => {
-    const photo = await ingestTestPhoto(photoStore);
+    const photo = await ingestTestPhoto(photoStore, { width: 2000, height: 1500 });
 
     const optimizeResponse = await adminFetch(`/api/admin/photos/${photo.id}/optimize`, {
       method: "POST",
@@ -99,8 +99,30 @@ describe("photo optimization API", () => {
     await expect(fs.access(optimizedPath)).rejects.toThrow();
   });
 
+  it("preserves source aspect ratio in contain mode", async () => {
+    const photo = await ingestTestPhoto(photoStore, {
+      width: 1200,
+      height: 1200,
+      originalName: "square.jpg"
+    });
+
+    const optimizeResponse = await adminFetch(`/api/admin/photos/${photo.id}/optimize`, {
+      method: "POST",
+      body: JSON.stringify({ mode: "contain", quality: 82 })
+    });
+    expect(optimizeResponse.status).toBe(200);
+
+    const optimizePayload = await optimizeResponse.json();
+    expect(optimizePayload.photo.optimized).toMatchObject({
+      width: 1080,
+      height: 1080,
+      format: "webp",
+      mode: "contain"
+    });
+  });
+
   it("rejects crop rectangles outside the source image", async () => {
-    const photo = await ingestTestPhoto(photoStore);
+    const photo = await ingestTestPhoto(photoStore, { width: 2000, height: 1500 });
     const response = await adminFetch(`/api/admin/photos/${photo.id}/optimize`, {
       method: "POST",
       body: JSON.stringify({
@@ -134,17 +156,21 @@ describe("photo optimization API", () => {
   }
 });
 
-async function ingestTestPhoto(photoStore) {
+async function ingestTestPhoto(photoStore, {
+  width,
+  height,
+  originalName = "family.jpg"
+}) {
   const buffer = await sharp({
     create: {
-      width: 2000,
-      height: 1500,
+      width,
+      height,
       channels: 3,
       background: "#cc7755"
     }
   }).jpeg().toBuffer();
   const result = await photoStore.ingestBuffer(buffer, {
-    originalName: "family.jpg",
+    originalName,
     mimeType: "image/jpeg",
     source: "web"
   });

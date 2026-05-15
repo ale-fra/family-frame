@@ -133,32 +133,13 @@ export function createPhotoStore(runtime, settingsStore) {
         .webp({ quality })
         .toFile(optimizedPath);
     } else {
-      const background = await sharp(orientedSource)
-        .resize(optimizedWidth, optimizedHeight, { fit: "cover" })
-        .blur(36)
-        .modulate({ brightness: 1.05, saturation: 1.05 })
-        .toBuffer();
-      const warmOverlay = await sharp({
-        create: {
-          width: optimizedWidth,
-          height: optimizedHeight,
-          channels: 4,
-          background: { r: 248, g: 244, b: 235, alpha: 0.34 }
-        }
-      }).png().toBuffer();
-      const foreground = await sharp(orientedSource)
+      await sharp(orientedSource)
         .resize(optimizedWidth, optimizedHeight, { fit: "inside" })
-        .toBuffer();
-
-      await sharp(background)
-        .composite([
-          { input: warmOverlay, blend: "over" },
-          { input: foreground, gravity: "center" }
-        ])
         .webp({ quality })
         .toFile(optimizedPath);
     }
 
+    const optimizedMetadata = await sharp(optimizedPath).metadata();
     await sharp(optimizedPath)
       .resize(360, 270, { fit: "cover" })
       .webp({ quality: 75 })
@@ -168,8 +149,8 @@ export function createPhotoStore(runtime, settingsStore) {
     photo.optimized = {
       filename,
       thumbFilename,
-      width: optimizedWidth,
-      height: optimizedHeight,
+      width: optimizedMetadata.width || optimizedWidth,
+      height: optimizedMetadata.height || optimizedHeight,
       format: optimizedFormat,
       quality,
       mode,
