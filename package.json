@@ -8,6 +8,7 @@
     "server": "node server/photo-server.mjs",
     "update": "bash scripts/update-and-build.sh",
     "build": "tsc -b && vite build",
+    "test": "vitest run",
     "preview": "vite preview --host 127.0.0.1",
     "awake": "bash scripts/disable-sleep.sh",
     "kiosk": "bash scripts/start-kiosk.sh",
@@ -35,6 +36,7 @@
     "@tailwindcss/vite": "^4.2.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "tailwindcss": "^4.2.4"
+    "tailwindcss": "^4.2.4",
+    "vitest": "^4.1.6"
   }
 }

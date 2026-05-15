@@ -1,0 +1,38 @@
+import { describe, expect, it } from "vitest";
+import { nextDisplayablePhotoIndex, normalizedSlideshowInterval, photoKey, samePhotoList } from "../src/frame/lib/photoLogic";
+
+describe("photo slideshow logic", () => {
+  const photos = [
+    { id: "a", src: "/a.jpg" },
+    { id: "b", src: "/b.jpg" },
+    { id: "c", src: "/c.jpg" }
+  ];
+
+  it("uses stable ids as photo keys", () => {
+    expect(photoKey({ id: "photo", src: "/photo.jpg" })).toBe("photo");
+    expect(photoKey({ src: "/photo.jpg" })).toBe("/photo.jpg");
+  });
+
+  it("skips failed queued photos", () => {
+    const queue = [2, 1];
+    const failed = new Set(["b"]);
+
+    expect(nextDisplayablePhotoIndex(0, photos, queue, failed)).toBe(2);
+  });
+
+  it("keeps the current photo when every alternative has failed", () => {
+    const queue: number[] = [];
+    const failed = new Set(["b", "c"]);
+
+    expect(nextDisplayablePhotoIndex(0, photos, queue, failed)).toBe(0);
+  });
+
+  it("compares full photo list signatures", () => {
+    expect(samePhotoList(photos, [...photos])).toBe(true);
+    expect(samePhotoList(photos, [{ id: "a", src: "/changed.jpg" }, photos[1], photos[2]])).toBe(false);
+  });
+
+  it("normalizes short slideshow intervals", () => {
+    expect(normalizedSlideshowInterval(1)).toBe(5);
+  });
+});
