@@ -92,18 +92,26 @@ function FrameApp() {
   const [specialDayPulse, setSpecialDayPulse] = React.useState(0);
   const photoStageRef = React.useRef<HTMLElement | null>(null);
   const shuffleQueueRef = React.useRef<number[]>([]);
+  const failedPhotoKeysRef = React.useRef<Set<string>>(new Set());
+  const activePhotoKeyRef = React.useRef("");
+  const photoListSignatureRef = React.useRef("");
+  const photoListCountRef = React.useRef(0);
   const pinnedPhotoId = config.slideshow.pinnedPhotoId || "";
+  const activePhoto = photos[photoIndex];
+  const slideshowIntervalSeconds = normalizedSlideshowInterval(config.slideshow.intervalSeconds);
 
   const showPhotoAt = React.useCallback((index: number) => {
     if (!Number.isInteger(index) || index < 0 || index >= photos.length) return null;
     shuffleQueueRef.current = [];
+    activePhotoKeyRef.current = photoKey(photos[index]);
     setPhotoIndex(index);
     return photos[index] || null;
   }, [photos]);
 
   const nextPhoto = React.useCallback(() => {
     if (photos.length === 0) return null;
-    const nextIndex = nextPhotoIndex(photoIndex, photos.length, shuffleQueueRef);
+    const nextIndex = nextDisplayablePhotoIndex(photoIndex, photos, shuffleQueueRef, failedPhotoKeysRef);
+    activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
     setPhotoIndex(nextIndex);
     return photos[nextIndex] || null;
   }, [photoIndex, photos]);
@@ -112,6 +120,7 @@ function FrameApp() {
     if (photos.length === 0) return null;
     const previousIndex = photoIndex <= 0 ? photos.length - 1 : photoIndex - 1;
     shuffleQueueRef.current = [];
+    activePhotoKeyRef.current = photos[previousIndex] ? photoKey(photos[previousIndex]) : "";
     setPhotoIndex(previousIndex);
     return photos[previousIndex] || null;
   }, [photoIndex, photos]);
@@ -146,7 +155,10 @@ function FrameApp() {
       if (cancelled) return;
 
       if (dynamicPhotos) {
-        setPhotos(dynamicPhotos);
+        setPhotos((currentPhotos) => {
+          syncFailedPhotoKeys(failedPhotoKeysRef.current, dynamicPhotos);
+          return samePhotoList(currentPhotos, dynamicPhotos) ? currentPhotos : dynamicPhotos;
+        });
         return;
       }
 
@@ -156,7 +168,13 @@ function FrameApp() {
           return response.json() as Promise<PhotoManifest>;
         })
         .then((manifest) => {
-          if (!cancelled) setPhotos(manifest.photos.filter((photo) => photo.src));
+          const manifestPhotos = manifest.photos.filter((photo) => photo.src);
+          if (!cancelled) {
+            setPhotos((currentPhotos) => {
+              syncFailedPhotoKeys(failedPhotoKeysRef.current, manifestPhotos);
+              return samePhotoList(currentPhotos, manifestPhotos) ? currentPhotos : manifestPhotos;
+            });
+          }
         })
         .catch(() => {
           if (!cancelled) setPhotos([]);
@@ -172,8 +190,33 @@ function FrameApp() {
   }, [config.photoManifestUrl]);
 
   React.useEffect(() => {
+    const signature = photos.map(photoSignature).join("\u0001");
+    if (photoListSignatureRef.current !== signature) {
+      logFrameEvent(photoListSignatureRef.current ? "photo-list-changed" : "photo-list-loaded", {
+        count: photos.length,
+        previousCount: photoListCountRef.current
+      });
+      photoListSignatureRef.current = signature;
+      photoListCountRef.current = photos.length;
+    }
+
     shuffleQueueRef.current = [];
-    setPhotoIndex((current) => (current >= photos.length ? 0 : current));
+    setPhotoIndex((current) => {
+      if (photos.length === 0) {
+        activePhotoKeyRef.current = "";
+        return 0;
+      }
+
+      const activeKey = activePhotoKeyRef.current;
+      if (activeKey) {
+        const stableIndex = photos.findIndex((photo) => photoKey(photo) === activeKey);
+        if (stableIndex !== -1) return stableIndex;
+      }
+
+      const nextIndex = current >= photos.length ? 0 : current;
+      activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
+      return nextIndex;
+    });
   }, [photos]);
 
   React.useEffect(() => {
@@ -181,6 +224,7 @@ function FrameApp() {
     const pinnedIndex = photos.findIndex((photo) => photo.id === pinnedPhotoId);
     if (pinnedIndex === -1) return;
     shuffleQueueRef.current = [];
+    activePhotoKeyRef.current = photoKey(photos[pinnedIndex]);
     setPhotoIndex(pinnedIndex);
   }, [photos, pinnedPhotoId]);
 
@@ -199,10 +243,23 @@ function FrameApp() {
   React.useEffect(() => {
     if (photos.length < 2 || manualPaused || pinnedPhotoId) return;
     const interval = window.setInterval(() => {
-      setPhotoIndex((current) => nextPhotoIndex(current, photos.length, shuffleQueueRef));
-    }, Math.max(5, config.slideshow.intervalSeconds) * 1000);
+      setPhotoIndex((current) => {
+        const nextIndex = nextDisplayablePhotoIndex(current, photos, shuffleQueueRef, failedPhotoKeysRef);
+        logFrameEvent("slideshow-advance", {
+          reason: "timer",
+          previousIndex: current,
+          nextIndex,
+          total: photos.length,
+          intervalSeconds: slideshowIntervalSeconds,
+          previousPhoto: photos[current]?.src || "",
+          nextPhoto: photos[nextIndex]?.src || ""
+        });
+        activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
+        return nextIndex;
+      });
+    }, slideshowIntervalSeconds * 1000);
     return () => window.clearInterval(interval);
-  }, [config.slideshow.intervalSeconds, manualPaused, photos.length, pinnedPhotoId]);
+  }, [manualPaused, photos, pinnedPhotoId, slideshowIntervalSeconds]);
 
   React.useEffect(() => {
     const api: FamilyFrameDebugApi = {
@@ -346,7 +403,6 @@ function FrameApp() {
     };
   }, [config.calendar]);
 
-  const activePhoto = photos[photoIndex];
   const activeSpecialDay = activeSpecialDayForDate(config.specialDays, clock);
   const activeSpecialDayEffects = new Set(activeSpecialDay?.effects || []);
   const photoBox = containedBox(photoStageSize.width - 28, photoStageSize.height - 28, photoAspect);
@@ -373,6 +429,34 @@ function FrameApp() {
                   const image = event.currentTarget;
                   if (image.naturalWidth > 0 && image.naturalHeight > 0) {
                     setPhotoAspect(image.naturalWidth / image.naturalHeight);
+                    activePhotoKeyRef.current = photoKey(activePhoto);
+                    failedPhotoKeysRef.current.delete(photoKey(activePhoto));
+                  }
+                }}
+                onError={() => {
+                  failedPhotoKeysRef.current.add(photoKey(activePhoto));
+                  console.warn("Skipping photo that failed to load:", activePhoto.src);
+                  logFrameEvent("photo-load-error", {
+                    index: photoIndex,
+                    total: photos.length,
+                    photoId: activePhoto.id || "",
+                    src: activePhoto.src,
+                    caption: activePhoto.caption || ""
+                  });
+                  if (photos.length > 1) {
+                    setPhotoIndex((current) => {
+                      const nextIndex = nextDisplayablePhotoIndex(current, photos, shuffleQueueRef, failedPhotoKeysRef);
+                      logFrameEvent("slideshow-advance", {
+                        reason: "photo-load-error",
+                        previousIndex: current,
+                        nextIndex,
+                        total: photos.length,
+                        previousPhoto: photos[current]?.src || "",
+                        nextPhoto: photos[nextIndex]?.src || ""
+                      });
+                      activePhotoKeyRef.current = photos[nextIndex] ? photoKey(photos[nextIndex]) : "";
+                      return nextIndex;
+                    });
                   }
                 }}
               />
@@ -717,14 +801,76 @@ async function fetchFrameSettings(): Promise<FrameSettings> {
   }
 }
 
-function nextPhotoIndex(current: number, length: number, queueRef: React.MutableRefObject<number[]>) {
-  if (length < 2) return 0;
+function nextDisplayablePhotoIndex(
+  current: number,
+  photos: Photo[],
+  queueRef: React.MutableRefObject<number[]>,
+  failedKeysRef: React.MutableRefObject<Set<string>>
+) {
+  if (photos.length < 2) return 0;
 
-  if (queueRef.current.length === 0) {
-    queueRef.current = shuffle(Array.from({ length }, (_value, index) => index).filter((index) => index !== current));
+  const failedKeys = failedKeysRef.current;
+  const isDisplayable = (index: number) => {
+    const photo = photos[index];
+    return Boolean(photo) && !failedKeys.has(photoKey(photo));
+  };
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (queueRef.current.length === 0) {
+      queueRef.current = shuffle(
+        Array.from({ length: photos.length }, (_value, index) => index)
+          .filter((index) => index !== current && isDisplayable(index))
+      );
+    }
+
+    while (queueRef.current.length > 0) {
+      const nextIndex = queueRef.current.pop();
+      if (nextIndex !== undefined && nextIndex !== current && isDisplayable(nextIndex)) return nextIndex;
+    }
   }
 
-  return queueRef.current.pop() ?? current;
+  return current >= 0 && current < photos.length ? current : 0;
+}
+
+function normalizedSlideshowInterval(value: number) {
+  return Math.max(5, Number.isFinite(value) ? value : defaultConfig.slideshow.intervalSeconds);
+}
+
+function samePhotoList(left: Photo[], right: Photo[]) {
+  return left.length === right.length && left.every((photo, index) => photoSignature(photo) === photoSignature(right[index]));
+}
+
+function photoSignature(photo: Photo) {
+  return [photoKey(photo), photo.src, photo.thumbSrc || "", photo.caption || ""].join("\u0000");
+}
+
+function photoKey(photo: Photo) {
+  return photo.id || photo.src;
+}
+
+function syncFailedPhotoKeys(failedKeys: Set<string>, photos: Photo[]) {
+  const validKeys = new Set(photos.map(photoKey));
+  for (const key of failedKeys) {
+    if (!validKeys.has(key)) failedKeys.delete(key);
+  }
+}
+
+function logFrameEvent(event: string, details: Record<string, string | number | boolean | null>) {
+  const payload = {
+    event,
+    path: window.location.pathname,
+    userAgent: navigator.userAgent,
+    details
+  };
+
+  fetch("/api/client-log", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    keepalive: true
+  }).catch(() => {
+    // The frame should keep running even when the local photo server is unavailable.
+  });
 }
 
 function shuffle(values: number[]) {

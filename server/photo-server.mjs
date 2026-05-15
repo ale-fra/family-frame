@@ -14,6 +14,7 @@ const dataDir = process.env.FRAME_DATA_DIR ? path.resolve(process.env.FRAME_DATA
 const photoDir = path.join(dataDir, "photos");
 const trashDir = path.join(dataDir, "trash");
 const dbPath = path.join(dataDir, "photos.json");
+const clientLogPath = path.join(dataDir, "frame-client.log");
 const legacySettingsPath = path.join(dataDir, "settings.json");
 const settingsDbPath = path.join(dataDir, "settings.sqlite");
 const distDir = path.join(rootDir, "dist");
@@ -32,6 +33,7 @@ const calendarSourcesFile = process.env.FRAME_CALENDAR_SOURCES_FILE
   ? path.resolve(process.env.FRAME_CALENDAR_SOURCES_FILE)
   : "";
 const calendarCacheMs = Number(process.env.FRAME_CALENDAR_CACHE_SECONDS || 900) * 1000;
+const maxClientLogBytes = 2 * 1024 * 1024;
 const allowedTelegramChats = new Set(
   (process.env.FRAME_TELEGRAM_ALLOWED_CHAT_IDS || "")
     .split(",")
@@ -138,6 +140,23 @@ app.get("/api/photos", async (request, response) => {
 
 app.get("/api/settings", async (_request, response) => {
   response.json(await readPublicSettings());
+});
+
+app.post("/api/client-log", async (request, response) => {
+  const entry = normalizeClientLogEntry(request.body);
+  if (!entry) {
+    response.status(400).json({ error: "Unsupported log payload" });
+    return;
+  }
+
+  try {
+    await appendClientLog(entry);
+    console.warn(`[frame-client] ${entry.event}`, entry);
+    response.status(202).json({ accepted: true });
+  } catch (error) {
+    console.error("Client log write failed:", error.message);
+    response.status(500).json({ error: "Client log could not be written" });
+  }
 });
 
 app.get("/api/admin/settings", requireAdmin, async (_request, response) => {
@@ -314,6 +333,55 @@ async function writeDb(db) {
   const tmpPath = `${dbPath}.tmp`;
   await fs.writeFile(tmpPath, `${JSON.stringify(db, null, 2)}\n`, "utf8");
   await fs.rename(tmpPath, dbPath);
+}
+
+function normalizeClientLogEntry(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const event = sanitizeLogString(payload.event, 80);
+  if (!event) return null;
+
+  return {
+    timestamp: new Date().toISOString(),
+    event,
+    path: sanitizeLogString(payload.path, 160),
+    userAgent: sanitizeLogString(payload.userAgent, 220),
+    details: sanitizeLogDetails(payload.details)
+  };
+}
+
+function sanitizeLogDetails(details) {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return {};
+  const sanitized = {};
+  for (const [key, value] of Object.entries(details).slice(0, 30)) {
+    const safeKey = sanitizeLogString(key, 60);
+    if (!safeKey) continue;
+    if (typeof value === "string") sanitized[safeKey] = sanitizeLogString(value, 500);
+    else if (typeof value === "number" && Number.isFinite(value)) sanitized[safeKey] = value;
+    else if (typeof value === "boolean") sanitized[safeKey] = value;
+    else if (value === null) sanitized[safeKey] = null;
+  }
+  return sanitized;
+}
+
+function sanitizeLogString(value, maxLength) {
+  if (typeof value !== "string") return "";
+  return value.replace(/[\r\n]/g, " ").slice(0, maxLength);
+}
+
+async function appendClientLog(entry) {
+  await fs.mkdir(dataDir, { recursive: true });
+  await rotateClientLogIfNeeded();
+  await fs.appendFile(clientLogPath, `${JSON.stringify(entry)}\n`, "utf8");
+}
+
+async function rotateClientLogIfNeeded() {
+  try {
+    const stats = await fs.stat(clientLogPath);
+    if (stats.size < maxClientLogBytes) return;
+    await fs.rename(clientLogPath, `${clientLogPath}.1`);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
 }
 
 async function readSettings() {
