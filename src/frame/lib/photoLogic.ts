@@ -59,6 +59,7 @@ export function photoSignature(photo: Photo) {
     photo.thumbSrc || "",
     photo.optimizedSrc || "",
     photo.optimizedThumbSrc || "",
+    photo.optimized?.mode || "",
     photo.caption || ""
   ].join("\u0000");
 }
@@ -68,7 +69,8 @@ export function photoKey(photo: Photo) {
 }
 
 export function displayPhotoSrc(photo: Photo) {
-  return photo.optimizedSrc || photo.src;
+  if (photo.optimizedSrc && photo.optimized?.mode === "contain") return photo.optimizedSrc;
+  return photo.src;
 }
 
 export function syncFailedPhotoKeys(failedKeys: Set<string>, photos: Photo[]) {

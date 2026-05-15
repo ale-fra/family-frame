@@ -40,9 +40,21 @@ describe("photo slideshow logic", () => {
     expect(samePhotoList(photos, [{ ...photos[0], optimizedSrc: "/a.webp" }, photos[1], photos[2]])).toBe(false);
   });
 
-  it("uses optimized photo sources when available", () => {
+  it("uses contain optimized photo sources when available", () => {
     expect(displayPhotoSrc({ src: "/original.jpg" })).toBe("/original.jpg");
-    expect(displayPhotoSrc({ src: "/original.jpg", optimizedSrc: "/optimized.webp" })).toBe("/optimized.webp");
+    expect(displayPhotoSrc({
+      src: "/original.jpg",
+      optimizedSrc: "/optimized.webp",
+      optimized: { mode: "contain" }
+    })).toBe("/optimized.webp");
+  });
+
+  it("keeps the original source when an optimized photo is cropped for cover", () => {
+    expect(displayPhotoSrc({
+      src: "/portrait.jpg",
+      optimizedSrc: "/landscape-crop.webp",
+      optimized: { mode: "cover" }
+    })).toBe("/portrait.jpg");
   });
 
   it("normalizes short slideshow intervals", () => {

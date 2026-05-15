@@ -137,6 +137,9 @@ export type Photo = {
   thumbSrc?: string;
   optimizedSrc?: string;
   optimizedThumbSrc?: string;
+  optimized?: {
+    mode?: "contain" | "cover";
+  };
   caption?: string;
 };
 
