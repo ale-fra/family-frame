@@ -23,10 +23,42 @@ export function PhotoStage({
   onPhotoLoaded: (photo: Photo, image: HTMLImageElement) => void;
   onPhotoError: (photo: Photo) => void;
 }) {
-  const [photoAspect, setPhotoAspect] = React.useState(1);
+  const [loadedPhotoGeometry, setLoadedPhotoGeometry] = React.useState<{
+    src: string;
+    aspect: number;
+  } | null>(null);
+  const imageRef = React.useRef<HTMLImageElement | null>(null);
+  const notifiedLoadedSrcRef = React.useRef("");
   const activeSpecialDayEffects = new Set(activeSpecialDay?.effects || []);
-  const photoBox = containedBox(photoStageSize.width, photoStageSize.height, photoAspect);
   const displaySrc = activePhoto ? displayPhotoSrc(activePhoto) : "";
+  const isCurrentPhotoLoaded = loadedPhotoGeometry?.src === displaySrc;
+  const photoBox = isCurrentPhotoLoaded
+    ? containedBox(photoStageSize.width, photoStageSize.height, loadedPhotoGeometry.aspect)
+    : null;
+
+  React.useEffect(() => {
+    setLoadedPhotoGeometry((geometry) => (geometry?.src === displaySrc ? geometry : null));
+  }, [displaySrc]);
+
+  const markPhotoLoaded = React.useCallback((photo: Photo, image: HTMLImageElement, src: string) => {
+    if (src !== displaySrc || displayPhotoSrc(photo) !== src) return;
+    if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
+
+    setLoadedPhotoGeometry({
+      src,
+      aspect: image.naturalWidth / image.naturalHeight
+    });
+
+    if (notifiedLoadedSrcRef.current === src) return;
+    notifiedLoadedSrcRef.current = src;
+    onPhotoLoaded(photo, image);
+  }, [displaySrc, onPhotoLoaded]);
+
+  React.useEffect(() => {
+    const image = imageRef.current;
+    if (!activePhoto || !displaySrc || !image?.complete) return;
+    markPhotoLoaded(activePhoto, image, displaySrc);
+  }, [activePhoto, displaySrc, markPhotoLoaded]);
 
   return (
     <section className="photo-stage" ref={stageRef}>
@@ -39,21 +71,18 @@ export function PhotoStage({
           />
           <div className="photo-stage-vignette" />
           <div
-            className="photo-wrap"
+            className={`photo-wrap${isCurrentPhotoLoaded ? "" : " is-loading"}`}
             style={photoBox ? { width: photoBox.width, height: photoBox.height } : undefined}
           >
             <img
+              ref={imageRef}
               key={displaySrc}
               src={displaySrc}
               alt={activePhoto.caption || "Foto di famiglia"}
               loading="eager"
               decoding="sync"
               onLoad={(event) => {
-                const image = event.currentTarget;
-                if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-                  setPhotoAspect(image.naturalWidth / image.naturalHeight);
-                  onPhotoLoaded(activePhoto, image);
-                }
+                markPhotoLoaded(activePhoto, event.currentTarget, displaySrc);
               }}
               onError={() => onPhotoError(activePhoto)}
             />
