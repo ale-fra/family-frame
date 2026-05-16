@@ -43,7 +43,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
   const [croppedAreaPixels, setCroppedAreaPixels] = React.useState<CropArea | null>(null);
   const [initialCroppedAreaPixels, setInitialCroppedAreaPixels] = React.useState<CropArea | undefined>();
   const [resetKey, setResetKey] = React.useState(0);
-  const [sourceAspect, setSourceAspect] = React.useState(frameAspect);
+  const [sourceAspect, setSourceAspect] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     if (!photo || !open) return;
@@ -56,7 +56,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
       photo.optimized && photo.optimized.mode !== "contain" ? photo.optimized.crop : undefined
     );
     setResetKey((value) => value + 1);
-    setSourceAspect(frameAspect);
+    setSourceAspect(null);
   }, [photo, open]);
 
   React.useEffect(() => {
@@ -77,9 +77,9 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
   if (!photo) return null;
 
   const sourceSrc = photo.src;
-  const canSave = mode === "contain" || Boolean(croppedAreaPixels);
   const isCropMode = mode !== "contain";
   const cropAspect = mode === "cover-original" ? sourceAspect : frameAspect;
+  const canSave = mode === "contain" || (Boolean(croppedAreaPixels) && cropAspect !== null);
   const outputLabel = mode === "cover" ? "4:3" : "Originale";
 
   async function save() {
@@ -153,7 +153,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
                 disabled={busy}
                 onClick={() => selectMode("cover")}
               >
-                Ritaglia 4:3
+                4:3
               </Button>
               <Button
                 type="button"
@@ -162,7 +162,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
                 disabled={busy}
                 onClick={() => selectMode("cover-original")}
               >
-                Ritaglia originale
+                Ritaglia
               </Button>
               <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={reset}>
                 Reset
@@ -175,19 +175,39 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
                 style={{ backgroundImage: `url(${sourceSrc})` }}
               />
               <div className="photo-stage-vignette" />
-              {isCropMode ? (
+              {mode === "cover-original" && sourceAspect === null ? (
+                <div className="photo-wrap">
+                  <img
+                    src={sourceSrc}
+                    alt={photo.originalName}
+                    onLoad={(event) => {
+                      const image = event.currentTarget;
+                      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                        setSourceAspect(image.naturalWidth / image.naturalHeight);
+                      }
+                    }}
+                  />
+                </div>
+              ) : isCropMode ? (
                 <div className="absolute inset-0 z-[2]">
                   <Cropper
-                    key={`${photo.id}-${resetKey}`}
+                    key={`${photo.id}-${mode}-${cropAspect ?? "loading"}-${resetKey}`}
                     image={sourceSrc}
                     crop={crop}
                     zoom={zoom}
-                    aspect={cropAspect}
+                    aspect={cropAspect || frameAspect}
                     objectFit="contain"
                     initialCroppedAreaPixels={initialCroppedAreaPixels}
+                    onMediaLoaded={(mediaSize) => {
+                      if (mediaSize.naturalWidth > 0 && mediaSize.naturalHeight > 0) {
+                        setSourceAspect(mediaSize.naturalWidth / mediaSize.naturalHeight);
+                      }
+                    }}
                     onCropChange={setCrop}
                     onZoomChange={setZoom}
-                    onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)}
+                    onCropComplete={(_area, pixels) => {
+                      if (cropAspect !== null) setCroppedAreaPixels(pixels);
+                    }}
                     showGrid
                   />
                 </div>
