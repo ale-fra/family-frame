@@ -175,7 +175,7 @@ describe("photo optimization API", () => {
     });
   });
 
-  it("renders a zoomed portrait inside a 4:3 frame without forcing cover", async () => {
+  it("renders a zoomed portrait crop without baking the frame background", async () => {
     const photo = await ingestTestPhoto(photoStore, {
       width: 1200,
       height: 1600,
@@ -194,7 +194,7 @@ describe("photo optimization API", () => {
 
     const optimizePayload = await optimizeResponse.json();
     expect(optimizePayload.photo.optimized).toMatchObject({
-      width: 1440,
+      width: 972,
       height: 1080,
       format: "webp",
       mode: "frame",
@@ -203,7 +203,7 @@ describe("photo optimization API", () => {
 
     const optimizedPath = path.join(runtime.optimizedPhotoDir, optimizePayload.photo.optimized.filename);
     const optimizedMetadata = await sharp(optimizedPath).metadata();
-    expect(optimizedMetadata.width).toBe(1440);
+    expect(optimizedMetadata.width).toBe(972);
     expect(optimizedMetadata.height).toBe(1080);
   });
 

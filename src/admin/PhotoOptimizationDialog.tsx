@@ -135,6 +135,15 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
     setResetKey((value) => value + 1);
   }
 
+  function centerFramePhoto() {
+    if (isFrameMode) {
+      setFrameTransform((current) => ({ ...current, x: 0, y: 0 }));
+      return;
+    }
+    setCrop({ x: 0, y: 0 });
+    setResetKey((value) => value + 1);
+  }
+
   function updateZoom(value: number) {
     const nextZoom = clamp(value, 1, 4);
     setZoom(nextZoom);
@@ -214,6 +223,9 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
               </Button>
               <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={reset}>
                 Reset
+              </Button>
+              <Button type="button" variant="ghost" size="sm" disabled={busy || mode === "contain"} onClick={centerFramePhoto}>
+                Centra
               </Button>
             </div>
 

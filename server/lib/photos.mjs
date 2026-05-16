@@ -264,42 +264,19 @@ async function renderFrameOptimizedPhoto(orientedSource, sourceWidth, sourceHeig
   const foregroundHeight = Math.max(1, Math.round(sourceHeight * baseScale * transform.zoom));
   const left = Math.round(optimizedWidth * (0.5 + transform.x) - foregroundWidth / 2);
   const top = Math.round(optimizedHeight * (0.5 + transform.y) - foregroundHeight / 2);
-  const warmOverlay = Buffer.from(
-    `<svg width="${optimizedWidth}" height="${optimizedHeight}" xmlns="http://www.w3.org/2000/svg">` +
-      `<rect width="100%" height="100%" fill="#f8f4eb" fill-opacity="0.32"/>` +
-    `</svg>`
-  );
 
-  const background = await sharp(orientedSource)
-    .resize(optimizedWidth, optimizedHeight, { fit: "cover" })
-    .blur(36)
-    .modulate({ brightness: 1.04, saturation: 0.92 })
-    .composite([{ input: warmOverlay, left: 0, top: 0 }])
-    .toBuffer();
-  const foregroundComposite = await clippedForegroundComposite(
+  await writeVisibleForeground(
     orientedSource,
     foregroundWidth,
     foregroundHeight,
     left,
-    top
+    top,
+    quality,
+    outputPath
   );
-  const layers = [{ input: background, left: 0, top: 0 }];
-  if (foregroundComposite) layers.push(foregroundComposite);
-
-  await sharp({
-    create: {
-      width: optimizedWidth,
-      height: optimizedHeight,
-      channels: 3,
-      background: "#f8f4eb"
-    }
-  })
-    .composite(layers)
-    .webp({ quality })
-    .toFile(outputPath);
 }
 
-async function clippedForegroundComposite(orientedSource, width, height, left, top) {
+async function writeVisibleForeground(orientedSource, width, height, left, top, quality, outputPath) {
   const visibleLeft = Math.max(0, left);
   const visibleTop = Math.max(0, top);
   const visibleRight = Math.min(optimizedWidth, left + width);
@@ -307,9 +284,11 @@ async function clippedForegroundComposite(orientedSource, width, height, left, t
   const visibleWidth = visibleRight - visibleLeft;
   const visibleHeight = visibleBottom - visibleTop;
 
-  if (visibleWidth <= 0 || visibleHeight <= 0) return null;
+  if (visibleWidth <= 0 || visibleHeight <= 0) {
+    throw photoStoreError(400, "Photo is outside the frame");
+  }
 
-  const input = await sharp(orientedSource)
+  await sharp(orientedSource)
     .resize(width, height, { fit: "fill" })
     .extract({
       left: visibleLeft - left,
@@ -317,13 +296,8 @@ async function clippedForegroundComposite(orientedSource, width, height, left, t
       width: visibleWidth,
       height: visibleHeight
     })
-    .toBuffer();
-
-  return {
-    input,
-    left: visibleLeft,
-    top: visibleTop
-  };
+    .webp({ quality })
+    .toFile(outputPath);
 }
 
 function clampNumber(value, min, max, fallback) {

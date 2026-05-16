@@ -40,33 +40,33 @@ describe("photo slideshow logic", () => {
     expect(samePhotoList(photos, [{ ...photos[0], optimizedSrc: "/a.webp" }, photos[1], photos[2]])).toBe(false);
   });
 
-  it("uses the original photo source for the frame foreground", () => {
+  it("uses optimized photos for the frame foreground when available", () => {
     expect(displayPhotoSrc({ src: "/original.jpg" })).toBe("/original.jpg");
     expect(displayPhotoSrc({
       src: "/original.jpg",
       optimizedSrc: "/optimized.webp",
       optimized: { mode: "contain" }
-    })).toBe("/original.jpg");
+    })).toBe("/optimized.webp");
   });
 
-  it("keeps the original source when an optimized photo is cropped for cover", () => {
+  it("uses cropped optimized photos for the frame foreground", () => {
     expect(displayPhotoSrc({
       src: "/portrait.jpg",
       optimizedSrc: "/landscape-crop.webp",
       optimized: { mode: "cover" }
-    })).toBe("/portrait.jpg");
+    })).toBe("/landscape-crop.webp");
     expect(displayPhotoSrc({
       src: "/portrait.jpg",
       optimizedSrc: "/portrait-crop.webp",
-      optimized: { mode: "cover-original" }
-    })).toBe("/portrait.jpg");
+      optimized: { mode: "frame" }
+    })).toBe("/portrait-crop.webp");
   });
 
-  it("keeps the original source when optimized metadata is missing", () => {
+  it("uses optimized source when optimized metadata is missing", () => {
     expect(displayPhotoSrc({
       src: "/original.jpg",
       optimizedSrc: "/unknown-mode.webp"
-    })).toBe("/original.jpg");
+    })).toBe("/unknown-mode.webp");
   });
 
   it("normalizes short slideshow intervals", () => {

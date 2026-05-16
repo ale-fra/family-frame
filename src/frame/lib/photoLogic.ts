@@ -69,7 +69,7 @@ export function photoKey(photo: Photo) {
 }
 
 export function displayPhotoSrc(photo: Photo) {
-  return photo.src;
+  return photo.optimizedSrc || photo.src;
 }
 
 export function syncFailedPhotoKeys(failedKeys: Set<string>, photos: Photo[]) {
