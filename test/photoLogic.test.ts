@@ -40,13 +40,13 @@ describe("photo slideshow logic", () => {
     expect(samePhotoList(photos, [{ ...photos[0], optimizedSrc: "/a.webp" }, photos[1], photos[2]])).toBe(false);
   });
 
-  it("uses contain optimized photo sources when available", () => {
+  it("uses the original photo source for the frame foreground", () => {
     expect(displayPhotoSrc({ src: "/original.jpg" })).toBe("/original.jpg");
     expect(displayPhotoSrc({
       src: "/original.jpg",
       optimizedSrc: "/optimized.webp",
       optimized: { mode: "contain" }
-    })).toBe("/optimized.webp");
+    })).toBe("/original.jpg");
   });
 
   it("keeps the original source when an optimized photo is cropped for cover", () => {

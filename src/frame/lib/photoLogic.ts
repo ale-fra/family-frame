@@ -69,7 +69,6 @@ export function photoKey(photo: Photo) {
 }
 
 export function displayPhotoSrc(photo: Photo) {
-  if (photo.optimizedSrc && photo.optimized?.mode === "contain") return photo.optimizedSrc;
   return photo.src;
 }
 
