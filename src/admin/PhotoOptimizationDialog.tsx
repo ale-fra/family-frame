@@ -176,7 +176,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
               />
               <div className="photo-stage-vignette" />
               {mode === "cover-original" && sourceAspect === null ? (
-                <div className="photo-wrap">
+                <div className="photo-optimization-media">
                   <img
                     src={sourceSrc}
                     alt={photo.originalName}
@@ -212,7 +212,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
                   />
                 </div>
               ) : (
-                <div className="photo-wrap">
+                <div className="photo-optimization-media">
                   <img
                     src={sourceSrc}
                     alt={photo.originalName}
