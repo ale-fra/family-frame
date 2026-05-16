@@ -73,6 +73,11 @@ body:has(.admin-shell) {
     0 18px 42px rgba(79, 67, 49, 0.16);
 }
 
+.photo-optimization-preview {
+  height: auto;
+  aspect-ratio: 4 / 3;
+}
+
 .photo-wrap {
   position: absolute;
   inset: 0;

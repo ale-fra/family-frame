@@ -1,7 +1,7 @@
 import * as React from "react";
 import Cropper from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
-import type { AdminPhoto } from "@/lib/types";
+import type { AdminPhoto, PhotoOptimizationMode } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,17 +32,18 @@ type CropArea = {
   height: number;
 };
 
-const targetAspect = 4 / 3;
+const frameAspect = 4 / 3;
 const defaultQuality = 82;
 
 export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSave, onRemove }: Props) {
-  const [mode, setMode] = React.useState<"contain" | "cover">("contain");
+  const [mode, setMode] = React.useState<PhotoOptimizationMode>("contain");
   const [crop, setCrop] = React.useState({ x: 0, y: 0 });
   const [zoom, setZoom] = React.useState(1);
   const [quality, setQuality] = React.useState(defaultQuality);
   const [croppedAreaPixels, setCroppedAreaPixels] = React.useState<CropArea | null>(null);
   const [initialCroppedAreaPixels, setInitialCroppedAreaPixels] = React.useState<CropArea | undefined>();
   const [resetKey, setResetKey] = React.useState(0);
+  const [sourceAspect, setSourceAspect] = React.useState(frameAspect);
 
   React.useEffect(() => {
     if (!photo || !open) return;
@@ -51,20 +52,41 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
     setZoom(1);
     setQuality(photo.optimized?.quality || defaultQuality);
     setCroppedAreaPixels(photo.optimized?.crop || null);
-    setInitialCroppedAreaPixels(photo.optimized?.mode === "cover" ? photo.optimized.crop : undefined);
+    setInitialCroppedAreaPixels(
+      photo.optimized && photo.optimized.mode !== "contain" ? photo.optimized.crop : undefined
+    );
     setResetKey((value) => value + 1);
+    setSourceAspect(frameAspect);
+  }, [photo, open]);
+
+  React.useEffect(() => {
+    if (!photo || !open) return;
+    let cancelled = false;
+    const image = new Image();
+    image.onload = () => {
+      if (!cancelled && image.naturalWidth > 0 && image.naturalHeight > 0) {
+        setSourceAspect(image.naturalWidth / image.naturalHeight);
+      }
+    };
+    image.src = photo.src;
+    return () => {
+      cancelled = true;
+    };
   }, [photo, open]);
 
   if (!photo) return null;
 
   const sourceSrc = photo.src;
   const canSave = mode === "contain" || Boolean(croppedAreaPixels);
+  const isCropMode = mode !== "contain";
+  const cropAspect = mode === "cover-original" ? sourceAspect : frameAspect;
+  const outputLabel = mode === "cover" ? "4:3" : "Originale";
 
   async function save() {
     const payload: OptimizePhotoPayload = {
       mode,
       quality,
-      ...(mode === "cover" && croppedAreaPixels
+      ...(isCropMode && croppedAreaPixels
         ? {
             crop: {
               x: croppedAreaPixels.x,
@@ -93,6 +115,15 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
     setResetKey((value) => value + 1);
   }
 
+  function selectMode(nextMode: PhotoOptimizationMode) {
+    setMode(nextMode);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
+    setInitialCroppedAreaPixels(undefined);
+    setResetKey((value) => value + 1);
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[calc(100dvh-1.5rem)] max-w-[calc(100vw-1.5rem)] grid-rows-none flex-col overflow-hidden p-0 sm:max-w-6xl">
@@ -111,7 +142,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
                 variant={mode === "contain" ? "default" : "outline"}
                 size="sm"
                 disabled={busy}
-                onClick={() => setMode("contain")}
+                onClick={() => selectMode("contain")}
               >
                 Adatta
               </Button>
@@ -120,43 +151,59 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
                 variant={mode === "cover" ? "default" : "outline"}
                 size="sm"
                 disabled={busy}
-                onClick={() => setMode("cover")}
+                onClick={() => selectMode("cover")}
               >
-                Ritaglia
+                Ritaglia 4:3
+              </Button>
+              <Button
+                type="button"
+                variant={mode === "cover-original" ? "default" : "outline"}
+                size="sm"
+                disabled={busy}
+                onClick={() => selectMode("cover-original")}
+              >
+                Ritaglia originale
               </Button>
               <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={reset}>
                 Reset
               </Button>
             </div>
 
-            <div className="relative mx-auto aspect-[4/3] w-full max-w-5xl overflow-hidden rounded-lg border border-border bg-[#f8f4eb] shadow-sm">
-              {mode === "cover" ? (
-                <Cropper
-                  key={`${photo.id}-${resetKey}`}
-                  image={sourceSrc}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={targetAspect}
-                  objectFit="contain"
-                  initialCroppedAreaPixels={initialCroppedAreaPixels}
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)}
-                  showGrid
-                />
-              ) : (
-                <>
-                  <div
-                    className="absolute inset-0 scale-110 bg-cover bg-center blur-2xl saturate-105"
-                    style={{ backgroundImage: `url(${sourceSrc})` }}
+            <div className="photo-stage photo-optimization-preview mx-auto w-full max-w-5xl">
+              <div
+                className="photo-stage-backdrop"
+                style={{ backgroundImage: `url(${sourceSrc})` }}
+              />
+              <div className="photo-stage-vignette" />
+              {isCropMode ? (
+                <div className="absolute inset-0 z-[2]">
+                  <Cropper
+                    key={`${photo.id}-${resetKey}`}
+                    image={sourceSrc}
+                    crop={crop}
+                    zoom={zoom}
+                    aspect={cropAspect}
+                    objectFit="contain"
+                    initialCroppedAreaPixels={initialCroppedAreaPixels}
+                    onCropChange={setCrop}
+                    onZoomChange={setZoom}
+                    onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)}
+                    showGrid
                   />
-                  <div className="absolute inset-0 bg-[#f8f4eb]/35" />
+                </div>
+              ) : (
+                <div className="photo-wrap">
                   <img
                     src={sourceSrc}
                     alt={photo.originalName}
-                    className="relative z-10 h-full w-full object-contain"
+                    onLoad={(event) => {
+                      const image = event.currentTarget;
+                      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                        setSourceAspect(image.naturalWidth / image.naturalHeight);
+                      }
+                    }}
                   />
-                </>
+                </div>
               )}
             </div>
           </div>
@@ -174,7 +221,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
                 max="4"
                 step="0.01"
                 value={zoom}
-                disabled={busy || mode !== "cover"}
+                disabled={busy || !isCropMode}
                 onChange={(event) => setZoom(Number(event.currentTarget.value))}
               />
             </div>
@@ -207,7 +254,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
             <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground">Output</p>
-                <p className="font-medium">Max 1440x1080</p>
+                <p className="font-medium">Max 1440x1080 · {outputLabel}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Cornice</p>

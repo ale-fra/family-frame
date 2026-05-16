@@ -121,6 +121,60 @@ describe("photo optimization API", () => {
     });
   });
 
+  it("generates a 4:3 landscape derivative in cover mode", async () => {
+    const photo = await ingestTestPhoto(photoStore, {
+      width: 1200,
+      height: 1600,
+      originalName: "portrait.jpg"
+    });
+
+    const optimizeResponse = await adminFetch(`/api/admin/photos/${photo.id}/optimize`, {
+      method: "POST",
+      body: JSON.stringify({
+        mode: "cover",
+        quality: 82,
+        crop: { x: 0, y: 350, width: 1200, height: 900 }
+      })
+    });
+    expect(optimizeResponse.status).toBe(200);
+
+    const optimizePayload = await optimizeResponse.json();
+    expect(optimizePayload.photo.optimized).toMatchObject({
+      width: 1440,
+      height: 1080,
+      format: "webp",
+      mode: "cover",
+      crop: { x: 0, y: 350, width: 1200, height: 900 }
+    });
+  });
+
+  it("preserves cropped portrait aspect ratio in cover-original mode", async () => {
+    const photo = await ingestTestPhoto(photoStore, {
+      width: 1200,
+      height: 1600,
+      originalName: "portrait.jpg"
+    });
+
+    const optimizeResponse = await adminFetch(`/api/admin/photos/${photo.id}/optimize`, {
+      method: "POST",
+      body: JSON.stringify({
+        mode: "cover-original",
+        quality: 82,
+        crop: { x: 0, y: 0, width: 1200, height: 1600 }
+      })
+    });
+    expect(optimizeResponse.status).toBe(200);
+
+    const optimizePayload = await optimizeResponse.json();
+    expect(optimizePayload.photo.optimized).toMatchObject({
+      width: 810,
+      height: 1080,
+      format: "webp",
+      mode: "cover-original",
+      crop: { x: 0, y: 0, width: 1200, height: 1600 }
+    });
+  });
+
   it("rejects crop rectangles outside the source image", async () => {
     const photo = await ingestTestPhoto(photoStore, { width: 2000, height: 1500 });
     const response = await adminFetch(`/api/admin/photos/${photo.id}/optimize`, {

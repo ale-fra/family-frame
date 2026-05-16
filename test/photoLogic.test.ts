@@ -55,6 +55,11 @@ describe("photo slideshow logic", () => {
       optimizedSrc: "/landscape-crop.webp",
       optimized: { mode: "cover" }
     })).toBe("/portrait.jpg");
+    expect(displayPhotoSrc({
+      src: "/portrait.jpg",
+      optimizedSrc: "/portrait-crop.webp",
+      optimized: { mode: "cover-original" }
+    })).toBe("/portrait.jpg");
   });
 
   it("keeps the original source when optimized metadata is missing", () => {

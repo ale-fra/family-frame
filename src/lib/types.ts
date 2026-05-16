@@ -138,7 +138,7 @@ export type Photo = {
   optimizedSrc?: string;
   optimizedThumbSrc?: string;
   optimized?: {
-    mode?: "contain" | "cover";
+    mode?: PhotoOptimizationMode;
   };
   caption?: string;
 };
@@ -156,6 +156,8 @@ export type AdminPhoto = Photo & {
   updatedAt: string;
 };
 
+export type PhotoOptimizationMode = "contain" | "cover" | "cover-original";
+
 export type PhotoOptimization = {
   filename: string;
   thumbFilename: string;
@@ -163,7 +165,7 @@ export type PhotoOptimization = {
   height: number;
   format: "webp";
   quality: number;
-  mode: "contain" | "cover";
+  mode: PhotoOptimizationMode;
   crop?: {
     x: number;
     y: number;

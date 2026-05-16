@@ -101,7 +101,7 @@ export function createPhotoStore(runtime, settingsStore) {
     if (!photo) throw photoStoreError(404, "Photo not found");
 
     const mode = payload?.mode;
-    if (mode !== "contain" && mode !== "cover") {
+    if (mode !== "contain" && mode !== "cover" && mode !== "cover-original") {
       throw photoStoreError(400, "Unsupported optimization mode");
     }
 
@@ -120,24 +120,20 @@ export function createPhotoStore(runtime, settingsStore) {
       throw photoStoreError(400, "Unsupported image dimensions");
     }
 
-    const crop = mode === "cover" ? normalizeCrop(payload?.crop, sourceWidth, sourceHeight) : undefined;
+    const crop = mode !== "contain" ? normalizeCrop(payload?.crop, sourceWidth, sourceHeight) : undefined;
     const filename = `${photo.id}.optimized.${optimizedFormat}`;
     const thumbFilename = `${photo.id}.optimized.thumb.${optimizedFormat}`;
     const optimizedPath = path.join(runtime.optimizedPhotoDir, filename);
     const thumbPath = path.join(runtime.optimizedPhotoDir, thumbFilename);
 
-    if (mode === "cover") {
-      await sharp(orientedSource)
-        .extract(crop)
-        .resize(optimizedWidth, optimizedHeight, { fit: "fill" })
-        .webp({ quality })
-        .toFile(optimizedPath);
-    } else {
-      await sharp(orientedSource)
-        .resize(optimizedWidth, optimizedHeight, { fit: "inside" })
-        .webp({ quality })
-        .toFile(optimizedPath);
-    }
+    const image = sharp(orientedSource);
+    if (crop) image.extract(sharpCrop(crop));
+    await image
+      .resize(optimizedWidth, optimizedHeight, {
+        fit: mode === "cover" ? "fill" : "inside"
+      })
+      .webp({ quality })
+      .toFile(optimizedPath);
 
     const optimizedMetadata = await sharp(optimizedPath).metadata();
     await sharp(optimizedPath)
@@ -229,6 +225,15 @@ function normalizeCrop(crop, sourceWidth, sourceHeight) {
   }
 
   return normalized;
+}
+
+function sharpCrop(crop) {
+  return {
+    left: crop.x,
+    top: crop.y,
+    width: crop.width,
+    height: crop.height
+  };
 }
 
 async function ensureReadableFile(filePath) {

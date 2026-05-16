@@ -4,6 +4,7 @@ import type {
   FrameConfig,
   FrameSettings,
   NightDisplaySettings,
+  PhotoOptimizationMode,
   SpecialDayConfig
 } from "@/lib/types";
 import { defaultConfig, mergeConfig } from "@/lib/config";
@@ -96,7 +97,7 @@ export async function updatePhotoStatus(
 }
 
 export type OptimizePhotoPayload = {
-  mode: "contain" | "cover";
+  mode: PhotoOptimizationMode;
   quality: number;
   crop?: {
     x: number;
