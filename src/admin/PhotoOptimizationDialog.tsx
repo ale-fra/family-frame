@@ -32,6 +32,12 @@ type CropArea = {
   height: number;
 };
 
+type FrameTransform = {
+  x: number;
+  y: number;
+  zoom: number;
+};
+
 const frameAspect = 4 / 3;
 const defaultQuality = 82;
 
@@ -43,44 +49,38 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
   const [croppedAreaPixels, setCroppedAreaPixels] = React.useState<CropArea | null>(null);
   const [initialCroppedAreaPixels, setInitialCroppedAreaPixels] = React.useState<CropArea | undefined>();
   const [resetKey, setResetKey] = React.useState(0);
-  const [sourceAspect, setSourceAspect] = React.useState<number | null>(null);
+  const [frameTransform, setFrameTransform] = React.useState<FrameTransform>({ x: 0, y: 0, zoom: 1 });
+  const dragRef = React.useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startTransform: FrameTransform;
+    rect: DOMRect;
+  } | null>(null);
 
   React.useEffect(() => {
     if (!photo || !open) return;
-    setMode(photo.optimized?.mode || "contain");
+    const nextMode = photo.optimized?.mode === "cover-original" ? "frame" : photo.optimized?.mode || "contain";
+    const nextTransform = photo.optimized?.transform || { x: 0, y: 0, zoom: 1 };
+    setMode(nextMode);
     setCrop({ x: 0, y: 0 });
-    setZoom(1);
+    setZoom(nextMode === "frame" ? nextTransform.zoom : 1);
     setQuality(photo.optimized?.quality || defaultQuality);
     setCroppedAreaPixels(photo.optimized?.crop || null);
     setInitialCroppedAreaPixels(
-      photo.optimized && photo.optimized.mode !== "contain" ? photo.optimized.crop : undefined
+      photo.optimized && photo.optimized.mode === "cover" ? photo.optimized.crop : undefined
     );
     setResetKey((value) => value + 1);
-    setSourceAspect(null);
-  }, [photo, open]);
-
-  React.useEffect(() => {
-    if (!photo || !open) return;
-    let cancelled = false;
-    const image = new Image();
-    image.onload = () => {
-      if (!cancelled && image.naturalWidth > 0 && image.naturalHeight > 0) {
-        setSourceAspect(image.naturalWidth / image.naturalHeight);
-      }
-    };
-    image.src = photo.src;
-    return () => {
-      cancelled = true;
-    };
+    setFrameTransform(nextTransform);
   }, [photo, open]);
 
   if (!photo) return null;
 
   const sourceSrc = photo.src;
-  const isCropMode = mode !== "contain";
-  const cropAspect = mode === "cover-original" ? sourceAspect : frameAspect;
-  const canSave = mode === "contain" || (Boolean(croppedAreaPixels) && cropAspect !== null);
-  const outputLabel = mode === "cover" ? "4:3" : "Originale";
+  const isCropMode = mode === "cover";
+  const isFrameMode = mode === "frame";
+  const canSave = mode === "contain" || isFrameMode || (isCropMode && Boolean(croppedAreaPixels));
+  const outputLabel = mode === "contain" ? "Originale" : "4:3";
 
   async function save() {
     const payload: OptimizePhotoPayload = {
@@ -93,6 +93,15 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
               y: croppedAreaPixels.y,
               width: croppedAreaPixels.width,
               height: croppedAreaPixels.height
+            }
+          }
+        : {}),
+      ...(isFrameMode
+        ? {
+            transform: {
+              x: frameTransform.x,
+              y: frameTransform.y,
+              zoom: frameTransform.zoom
             }
           }
         : {})
@@ -112,6 +121,7 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
     setQuality(defaultQuality);
     setCroppedAreaPixels(null);
     setInitialCroppedAreaPixels(undefined);
+    setFrameTransform({ x: 0, y: 0, zoom: 1 });
     setResetKey((value) => value + 1);
   }
 
@@ -121,7 +131,45 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
     setZoom(1);
     setCroppedAreaPixels(null);
     setInitialCroppedAreaPixels(undefined);
+    setFrameTransform({ x: 0, y: 0, zoom: 1 });
     setResetKey((value) => value + 1);
+  }
+
+  function updateZoom(value: number) {
+    const nextZoom = clamp(value, 1, 4);
+    setZoom(nextZoom);
+    if (isFrameMode) {
+      setFrameTransform((current) => ({ ...current, zoom: nextZoom }));
+    }
+  }
+
+  function startFrameDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (!isFrameMode || busy) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startTransform: frameTransform,
+      rect: event.currentTarget.getBoundingClientRect()
+    };
+  }
+
+  function moveFrameDrag(event: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const nextX = drag.startTransform.x + (event.clientX - drag.startX) / drag.rect.width;
+    const nextY = drag.startTransform.y + (event.clientY - drag.startY) / drag.rect.height;
+    setFrameTransform((current) => ({
+      ...current,
+      x: clamp(nextX, -0.5, 0.5),
+      y: clamp(nextY, -0.5, 0.5)
+    }));
+  }
+
+  function stopFrameDrag(event: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (drag?.pointerId === event.pointerId) dragRef.current = null;
   }
 
   return (
@@ -157,10 +205,10 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
               </Button>
               <Button
                 type="button"
-                variant={mode === "cover-original" ? "default" : "outline"}
+                variant={mode === "frame" ? "default" : "outline"}
                 size="sm"
                 disabled={busy}
-                onClick={() => selectMode("cover-original")}
+                onClick={() => selectMode("frame")}
               >
                 Ritaglia
               </Button>
@@ -175,53 +223,40 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
                 style={{ backgroundImage: `url(${sourceSrc})` }}
               />
               <div className="photo-stage-vignette" />
-              {mode === "cover-original" && sourceAspect === null ? (
-                <div className="photo-optimization-media">
-                  <img
-                    src={sourceSrc}
-                    alt={photo.originalName}
-                    onLoad={(event) => {
-                      const image = event.currentTarget;
-                      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-                        setSourceAspect(image.naturalWidth / image.naturalHeight);
-                      }
-                    }}
-                  />
-                </div>
-              ) : isCropMode ? (
+              {isCropMode ? (
                 <div className="absolute inset-0 z-[2]">
                   <Cropper
-                    key={`${photo.id}-${mode}-${cropAspect ?? "loading"}-${resetKey}`}
+                    key={`${photo.id}-${mode}-${resetKey}`}
                     image={sourceSrc}
                     crop={crop}
                     zoom={zoom}
-                    aspect={cropAspect || frameAspect}
+                    aspect={frameAspect}
                     objectFit="contain"
                     initialCroppedAreaPixels={initialCroppedAreaPixels}
-                    onMediaLoaded={(mediaSize) => {
-                      if (mediaSize.naturalWidth > 0 && mediaSize.naturalHeight > 0) {
-                        setSourceAspect(mediaSize.naturalWidth / mediaSize.naturalHeight);
-                      }
-                    }}
                     onCropChange={setCrop}
                     onZoomChange={setZoom}
-                    onCropComplete={(_area, pixels) => {
-                      if (cropAspect !== null) setCroppedAreaPixels(pixels);
-                    }}
+                    onCropComplete={(_area, pixels) => setCroppedAreaPixels(pixels)}
                     showGrid
                   />
                 </div>
               ) : (
-                <div className="photo-optimization-media">
+                <div
+                  className={isFrameMode ? "photo-optimization-media photo-optimization-media-drag" : "photo-optimization-media"}
+                  onPointerDown={startFrameDrag}
+                  onPointerMove={moveFrameDrag}
+                  onPointerUp={stopFrameDrag}
+                  onPointerCancel={stopFrameDrag}
+                >
                   <img
                     src={sourceSrc}
                     alt={photo.originalName}
-                    onLoad={(event) => {
-                      const image = event.currentTarget;
-                      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-                        setSourceAspect(image.naturalWidth / image.naturalHeight);
-                      }
-                    }}
+                    style={isFrameMode
+                      ? {
+                          left: `${50 + frameTransform.x * 100}%`,
+                          top: `${50 + frameTransform.y * 100}%`,
+                          transform: `translate(-50%, -50%) scale(${frameTransform.zoom})`
+                        }
+                      : undefined}
                   />
                 </div>
               )}
@@ -241,8 +276,8 @@ export function PhotoOptimizationDialog({ photo, open, busy, onOpenChange, onSav
                 max="4"
                 step="0.01"
                 value={zoom}
-                disabled={busy || !isCropMode}
-                onChange={(event) => setZoom(Number(event.currentTarget.value))}
+                disabled={busy || (!isCropMode && !isFrameMode)}
+                onChange={(event) => updateZoom(Number(event.currentTarget.value))}
               />
             </div>
 
@@ -308,4 +343,9 @@ function readQuality(value: string) {
   const quality = Number(value);
   if (!Number.isFinite(quality)) return defaultQuality;
   return Math.min(95, Math.max(60, Math.round(quality)));
+}
+
+function clamp(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
 }

@@ -156,7 +156,7 @@ export type AdminPhoto = Photo & {
   updatedAt: string;
 };
 
-export type PhotoOptimizationMode = "contain" | "cover" | "cover-original";
+export type PhotoOptimizationMode = "contain" | "cover" | "cover-original" | "frame";
 
 export type PhotoOptimization = {
   filename: string;
@@ -171,6 +171,11 @@ export type PhotoOptimization = {
     y: number;
     width: number;
     height: number;
+  };
+  transform?: {
+    x: number;
+    y: number;
+    zoom: number;
   };
   createdAt: string;
   updatedAt: string;

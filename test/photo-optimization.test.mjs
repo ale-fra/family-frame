@@ -175,6 +175,38 @@ describe("photo optimization API", () => {
     });
   });
 
+  it("renders a zoomed portrait inside a 4:3 frame without forcing cover", async () => {
+    const photo = await ingestTestPhoto(photoStore, {
+      width: 1200,
+      height: 1600,
+      originalName: "portrait.jpg"
+    });
+
+    const optimizeResponse = await adminFetch(`/api/admin/photos/${photo.id}/optimize`, {
+      method: "POST",
+      body: JSON.stringify({
+        mode: "frame",
+        quality: 82,
+        transform: { x: 0.08, y: -0.04, zoom: 1.2 }
+      })
+    });
+    expect(optimizeResponse.status).toBe(200);
+
+    const optimizePayload = await optimizeResponse.json();
+    expect(optimizePayload.photo.optimized).toMatchObject({
+      width: 1440,
+      height: 1080,
+      format: "webp",
+      mode: "frame",
+      transform: { x: 0.08, y: -0.04, zoom: 1.2 }
+    });
+
+    const optimizedPath = path.join(runtime.optimizedPhotoDir, optimizePayload.photo.optimized.filename);
+    const optimizedMetadata = await sharp(optimizedPath).metadata();
+    expect(optimizedMetadata.width).toBe(1440);
+    expect(optimizedMetadata.height).toBe(1080);
+  });
+
   it("rejects crop rectangles outside the source image", async () => {
     const photo = await ingestTestPhoto(photoStore, { width: 2000, height: 1500 });
     const response = await adminFetch(`/api/admin/photos/${photo.id}/optimize`, {

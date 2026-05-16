@@ -105,6 +105,11 @@ export type OptimizePhotoPayload = {
     width: number;
     height: number;
   };
+  transform?: {
+    x: number;
+    y: number;
+    zoom: number;
+  };
 };
 
 export async function optimizePhoto(

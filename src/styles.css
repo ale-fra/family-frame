@@ -100,6 +100,22 @@ body:has(.admin-shell) {
   border-radius: 4px;
 }
 
+.photo-optimization-media-drag {
+  cursor: grab;
+  touch-action: none;
+}
+
+.photo-optimization-media-drag:active {
+  cursor: grabbing;
+}
+
+.photo-optimization-media-drag > img {
+  position: absolute;
+  user-select: none;
+  pointer-events: none;
+  transform-origin: center;
+}
+
 .photo-wrap {
   position: absolute;
   inset: 0;

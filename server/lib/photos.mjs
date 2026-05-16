@@ -101,7 +101,7 @@ export function createPhotoStore(runtime, settingsStore) {
     if (!photo) throw photoStoreError(404, "Photo not found");
 
     const mode = payload?.mode;
-    if (mode !== "contain" && mode !== "cover" && mode !== "cover-original") {
+    if (mode !== "contain" && mode !== "cover" && mode !== "cover-original" && mode !== "frame") {
       throw photoStoreError(400, "Unsupported optimization mode");
     }
 
@@ -120,20 +120,27 @@ export function createPhotoStore(runtime, settingsStore) {
       throw photoStoreError(400, "Unsupported image dimensions");
     }
 
-    const crop = mode !== "contain" ? normalizeCrop(payload?.crop, sourceWidth, sourceHeight) : undefined;
+    const crop = mode === "cover" || mode === "cover-original"
+      ? normalizeCrop(payload?.crop, sourceWidth, sourceHeight)
+      : undefined;
+    const transform = mode === "frame" ? normalizeFrameTransform(payload?.transform) : undefined;
     const filename = `${photo.id}.optimized.${optimizedFormat}`;
     const thumbFilename = `${photo.id}.optimized.thumb.${optimizedFormat}`;
     const optimizedPath = path.join(runtime.optimizedPhotoDir, filename);
     const thumbPath = path.join(runtime.optimizedPhotoDir, thumbFilename);
 
-    const image = sharp(orientedSource);
-    if (crop) image.extract(sharpCrop(crop));
-    await image
-      .resize(optimizedWidth, optimizedHeight, {
-        fit: mode === "cover" ? "fill" : "inside"
-      })
-      .webp({ quality })
-      .toFile(optimizedPath);
+    if (mode === "frame") {
+      await renderFrameOptimizedPhoto(orientedSource, sourceWidth, sourceHeight, transform, quality, optimizedPath);
+    } else {
+      const image = sharp(orientedSource);
+      if (crop) image.extract(sharpCrop(crop));
+      await image
+        .resize(optimizedWidth, optimizedHeight, {
+          fit: mode === "cover" ? "fill" : "inside"
+        })
+        .webp({ quality })
+        .toFile(optimizedPath);
+    }
 
     const optimizedMetadata = await sharp(optimizedPath).metadata();
     await sharp(optimizedPath)
@@ -151,6 +158,7 @@ export function createPhotoStore(runtime, settingsStore) {
       quality,
       mode,
       ...(crop ? { crop } : {}),
+      ...(transform ? { transform } : {}),
       createdAt: photo.optimized?.createdAt || now,
       updatedAt: now,
       sourceUpdatedAt: photo.optimized?.sourceUpdatedAt || photo.createdAt
@@ -227,6 +235,20 @@ function normalizeCrop(crop, sourceWidth, sourceHeight) {
   return normalized;
 }
 
+function normalizeFrameTransform(transform) {
+  const normalized = {
+    x: clampNumber(Number(transform?.x), -0.5, 0.5, 0),
+    y: clampNumber(Number(transform?.y), -0.5, 0.5, 0),
+    zoom: clampNumber(Number(transform?.zoom), 1, 4, 1)
+  };
+
+  return {
+    x: Number(normalized.x.toFixed(4)),
+    y: Number(normalized.y.toFixed(4)),
+    zoom: Number(normalized.zoom.toFixed(4))
+  };
+}
+
 function sharpCrop(crop) {
   return {
     left: crop.x,
@@ -234,6 +256,79 @@ function sharpCrop(crop) {
     width: crop.width,
     height: crop.height
   };
+}
+
+async function renderFrameOptimizedPhoto(orientedSource, sourceWidth, sourceHeight, transform, quality, outputPath) {
+  const baseScale = Math.min(optimizedWidth / sourceWidth, optimizedHeight / sourceHeight);
+  const foregroundWidth = Math.max(1, Math.round(sourceWidth * baseScale * transform.zoom));
+  const foregroundHeight = Math.max(1, Math.round(sourceHeight * baseScale * transform.zoom));
+  const left = Math.round(optimizedWidth * (0.5 + transform.x) - foregroundWidth / 2);
+  const top = Math.round(optimizedHeight * (0.5 + transform.y) - foregroundHeight / 2);
+  const warmOverlay = Buffer.from(
+    `<svg width="${optimizedWidth}" height="${optimizedHeight}" xmlns="http://www.w3.org/2000/svg">` +
+      `<rect width="100%" height="100%" fill="#f8f4eb" fill-opacity="0.32"/>` +
+    `</svg>`
+  );
+
+  const background = await sharp(orientedSource)
+    .resize(optimizedWidth, optimizedHeight, { fit: "cover" })
+    .blur(36)
+    .modulate({ brightness: 1.04, saturation: 0.92 })
+    .composite([{ input: warmOverlay, left: 0, top: 0 }])
+    .toBuffer();
+  const foregroundComposite = await clippedForegroundComposite(
+    orientedSource,
+    foregroundWidth,
+    foregroundHeight,
+    left,
+    top
+  );
+  const layers = [{ input: background, left: 0, top: 0 }];
+  if (foregroundComposite) layers.push(foregroundComposite);
+
+  await sharp({
+    create: {
+      width: optimizedWidth,
+      height: optimizedHeight,
+      channels: 3,
+      background: "#f8f4eb"
+    }
+  })
+    .composite(layers)
+    .webp({ quality })
+    .toFile(outputPath);
+}
+
+async function clippedForegroundComposite(orientedSource, width, height, left, top) {
+  const visibleLeft = Math.max(0, left);
+  const visibleTop = Math.max(0, top);
+  const visibleRight = Math.min(optimizedWidth, left + width);
+  const visibleBottom = Math.min(optimizedHeight, top + height);
+  const visibleWidth = visibleRight - visibleLeft;
+  const visibleHeight = visibleBottom - visibleTop;
+
+  if (visibleWidth <= 0 || visibleHeight <= 0) return null;
+
+  const input = await sharp(orientedSource)
+    .resize(width, height, { fit: "fill" })
+    .extract({
+      left: visibleLeft - left,
+      top: visibleTop - top,
+      width: visibleWidth,
+      height: visibleHeight
+    })
+    .toBuffer();
+
+  return {
+    input,
+    left: visibleLeft,
+    top: visibleTop
+  };
+}
+
+function clampNumber(value, min, max, fallback) {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
 }
 
 async function ensureReadableFile(filePath) {
