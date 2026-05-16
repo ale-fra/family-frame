@@ -9,6 +9,11 @@ const optimizedFormat = "webp";
 const defaultQuality = 82;
 const minQuality = 60;
 const maxQuality = 95;
+const uploadedPhotoInputOptions = {
+  animated: false,
+  pages: 1,
+  failOn: "none"
+};
 
 const allowedMimeTypes = new Map([
   ["image/jpeg", ".jpg"],
@@ -110,7 +115,7 @@ export function createPhotoStore(runtime, settingsStore) {
     await ensureReadableFile(sourcePath);
     await fs.mkdir(runtime.optimizedPhotoDir, { recursive: true });
 
-    const orientedSource = await sharp(sourcePath, { animated: false, pages: 1 })
+    const orientedSource = await sharp(sourcePath, uploadedPhotoInputOptions)
       .rotate()
       .toBuffer();
     const metadata = await sharp(orientedSource).metadata();

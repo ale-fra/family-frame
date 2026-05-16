@@ -121,6 +121,29 @@ describe("photo optimization API", () => {
     });
   });
 
+  it("optimizes JPEG uploads with recoverable truncated pixel data", async () => {
+    const photo = await ingestTestPhoto(photoStore, {
+      width: 2000,
+      height: 1500,
+      originalName: "truncated.jpg",
+      truncateBytes: 2
+    });
+
+    const optimizeResponse = await adminFetch(`/api/admin/photos/${photo.id}/optimize`, {
+      method: "POST",
+      body: JSON.stringify({ mode: "contain", quality: 82 })
+    });
+    expect(optimizeResponse.status).toBe(200);
+
+    const optimizePayload = await optimizeResponse.json();
+    expect(optimizePayload.photo.optimized).toMatchObject({
+      width: 1440,
+      height: 1080,
+      format: "webp",
+      mode: "contain"
+    });
+  });
+
   it("generates a 4:3 landscape derivative in cover mode", async () => {
     const photo = await ingestTestPhoto(photoStore, {
       width: 1200,
@@ -245,7 +268,8 @@ describe("photo optimization API", () => {
 async function ingestTestPhoto(photoStore, {
   width,
   height,
-  originalName = "family.jpg"
+  originalName = "family.jpg",
+  truncateBytes = 0
 }) {
   const buffer = await sharp({
     create: {
@@ -255,7 +279,8 @@ async function ingestTestPhoto(photoStore, {
       background: "#cc7755"
     }
   }).jpeg().toBuffer();
-  const result = await photoStore.ingestBuffer(buffer, {
+  const uploadedBuffer = truncateBytes > 0 ? buffer.subarray(0, buffer.length - truncateBytes) : buffer;
+  const result = await photoStore.ingestBuffer(uploadedBuffer, {
     originalName,
     mimeType: "image/jpeg",
     source: "web"
