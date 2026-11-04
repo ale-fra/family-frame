@@ -30,6 +30,13 @@ export function createTelegramService(runtime, photoStore, systemActions) {
     if (runtime.allowedTelegramChats.size > 0 && !runtime.allowedTelegramChats.has(chatId)) return;
 
     if (typeof message.text === "string" && message.text.trim().startsWith("/refresh")) {
+      if (!systemActions.capabilities.refresh) {
+        await telegramApi("sendMessage", new URLSearchParams({
+          chat_id: chatId,
+          text: "Aggiornamento del dispositivo non disponibile in questo ambiente."
+        }));
+        return;
+      }
       const started = await systemActions.triggerRefresh(`telegram:${chatId}`);
       await telegramApi("sendMessage", new URLSearchParams({
         chat_id: chatId,

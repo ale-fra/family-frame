@@ -6,13 +6,10 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "server": "node server/photo-server.mjs",
-    "update": "bash scripts/update-and-build.sh",
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "preview": "vite preview --host 127.0.0.1",
-    "awake": "bash scripts/disable-sleep.sh",
-    "kiosk": "bash scripts/start-kiosk.sh",
-    "display": "bash scripts/setup-display.sh"
+    "export:code-behaviors": "node scripts/export-code-behaviors.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
@@ -40,5 +37,9 @@
     "@types/react-dom": "^19.2.3",
     "tailwindcss": "^4.2.4",
     "vitest": "^4.1.6"
-  }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT"
 }

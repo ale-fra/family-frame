@@ -11,6 +11,7 @@ export default defineConfig({
     }
   },
   server: {
+    allowedHosts: ["coding-box.home"],
     port: 5173,
     strictPort: false,
     proxy: {

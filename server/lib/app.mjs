@@ -26,6 +26,12 @@ export function createPhotoServerApp({
     next();
   });
   app.use("/media/photos", express.static(runtime.photoDir, { fallthrough: false }));
+  if (runtime.configFile) {
+    app.get("/frame.config.json", (_request, response) => {
+      response.setHeader("Cache-Control", "no-store");
+      response.sendFile(runtime.configFile);
+    });
+  }
   app.use(express.static(runtime.distDir, {
     fallthrough: true,
     etag: false,
@@ -37,6 +43,10 @@ export function createPhotoServerApp({
 
   app.get("/api/health", (_request, response) => {
     response.json({ ok: true });
+  });
+
+  app.get("/api/admin/capabilities", requireAdmin(runtime), (_request, response) => {
+    response.json(systemActions.capabilities);
   });
 
   app.get("/api/events", (request, response) => {
@@ -151,7 +161,9 @@ export function createPhotoServerApp({
         await systemActions.applyNightDisplaySettings(settings.display.nightMode);
       } catch (error) {
         console.error("Night display timer update failed:", error.message);
-        response.status(500).json({ error: "Night display timers could not be updated" });
+        response.status(error.status === 501 ? 501 : 500).json({
+          error: error.status === 501 ? error.message : "Night display timers could not be updated"
+        });
         return;
       }
     }
@@ -259,11 +271,15 @@ export function createPhotoServerApp({
   });
 
   app.post("/api/admin/refresh", requireAdmin(runtime), async (_request, response) => {
-    const started = await systemActions.triggerRefresh("admin-api");
-    response.status(started ? 202 : 409).json({
-      accepted: started,
-      message: started ? "Refresh started" : "Refresh already running"
-    });
+    try {
+      const started = await systemActions.triggerRefresh("admin-api");
+      response.status(started ? 202 : 409).json({
+        accepted: started,
+        message: started ? "Refresh started" : "Refresh already running"
+      });
+    } catch (error) {
+      response.status(error.status === 501 ? 501 : 500).json({ error: error.message });
+    }
   });
 
   app.post("/api/admin/display/:action", requireAdmin(runtime), async (request, response) => {
@@ -281,7 +297,9 @@ export function createPhotoServerApp({
       response.json({ ok: true, action, output });
     } catch (error) {
       console.error(`Display ${action} failed:`, error.message);
-      response.status(500).json({ error: `Display could not be turned ${action}` });
+      response.status(error.status === 501 ? 501 : 500).json({
+        error: error.status === 501 ? error.message : `Display could not be turned ${action}`
+      });
     }
   });
 

@@ -23,6 +23,7 @@ import {
   UnauthorizedError,
   defaultNightDisplaySettings,
   loadAdminSettings,
+  loadDisplayControlsAvailable,
   loadPhotos,
   optimizePhoto,
   parseKeywordEditorValue,
@@ -56,6 +57,7 @@ export default function AdminApp() {
   const [disabledSpecialDayIds, setDisabledSpecialDayIds] = React.useState<string[]>([]);
   const [nightDisplay, setNightDisplay] = React.useState<NightDisplaySettings>(defaultNightDisplaySettings);
   const [pinnedPhotoId, setPinnedPhotoId] = React.useState("");
+  const [displayControlsAvailable, setDisplayControlsAvailable] = React.useState(false);
 
   const handleUnauthorized = React.useCallback(() => {
     setNeedsPin(true);
@@ -84,7 +86,11 @@ export default function AdminApp() {
   const refreshSettings = React.useCallback(async () => {
     if (!pin) return;
     try {
-      const bundle = await loadAdminSettings(pin);
+      const [bundle, displayControls] = await Promise.all([
+        loadAdminSettings(pin),
+        loadDisplayControlsAvailable(pin)
+      ]);
+      setDisplayControlsAvailable(displayControls);
       setCalendarSources(bundle.calendarSources);
       setSpecialDayEvents(bundle.specialDayEvents);
       setKeywordsText(bundle.importantKeywords.join("\n"));
@@ -410,6 +416,7 @@ export default function AdminApp() {
               calendarSources={calendarSources}
               onSaveCalendarSources={saveCalendarSources}
               nightDisplay={nightDisplay}
+              displayControlsAvailable={displayControlsAvailable}
               onSaveNightDisplay={saveNightDisplay}
               onDisplayPower={handleDisplayPower}
               busy={busy}

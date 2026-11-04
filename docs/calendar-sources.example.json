@@ -1,16 +1,8 @@
 {
   "sources": [
     {
-      "label": "Famiglia",
-      "icsUrl": "https://calendar.google.com/calendar/ical/family-example/private-example/basic.ics"
-    },
-    {
-      "label": "Scuola",
-      "icsUrl": "https://calendar.google.com/calendar/ical/school-example/private-example/basic.ics"
-    },
-    {
-      "label": "Lavoro",
-      "icsUrl": "https://calendar.google.com/calendar/ical/work-example/private-example/basic.ics"
+      "label": "Demo calendar",
+      "icsUrl": "https://example.com/demo-calendar.ics"
     }
   ]
 }

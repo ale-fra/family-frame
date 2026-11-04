@@ -4,11 +4,11 @@ export const defaultConfig: FrameConfig = {
   frameName: "Cornice Famiglia",
   photoManifestUrl: "/photos/manifest.json",
   weather: {
-    city: "Portuense, Roma",
-    latitude: 41.8667,
-    longitude: 12.4569,
+    city: "Roma",
+    latitude: 41.9028,
+    longitude: 12.4964,
     timezone: "Europe/Rome",
-    label: "Portuense, Roma",
+    label: "Roma",
     showLocationLabel: false,
     refreshMinutes: 30
   },

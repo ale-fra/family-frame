@@ -12,3 +12,4 @@ calendar-sources.json
 .DS_Store
 *.log
 .superpowers/
+exports/

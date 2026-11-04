@@ -12,6 +12,7 @@ type Props = {
   calendarSources: CalendarSource[];
   onSaveCalendarSources: (sources: CalendarSource[]) => void;
   nightDisplay: NightDisplaySettings;
+  displayControlsAvailable: boolean;
   onSaveNightDisplay: (settings: NightDisplaySettings) => void;
   onDisplayPower: (action: "on" | "off", output: string) => void;
   keywordsText: string;
@@ -28,6 +29,7 @@ export function SettingsSection({
   calendarSources,
   onSaveCalendarSources,
   nightDisplay,
+  displayControlsAvailable,
   onSaveNightDisplay,
   onDisplayPower,
   keywordsText,
@@ -41,12 +43,12 @@ export function SettingsSection({
 }: Props) {
   return (
     <div className="space-y-6">
-      <NightDisplayEditor
+      {displayControlsAvailable && <NightDisplayEditor
         settings={nightDisplay}
         busy={busy}
         onSave={onSaveNightDisplay}
         onDisplayPower={onDisplayPower}
-      />
+      />}
 
       <CalendarSourcesEditor
         sources={calendarSources}

@@ -28,6 +28,17 @@ export function authHeaders(pin: string): Record<string, string> {
   return pin ? { "x-frame-admin-pin": pin } : {};
 }
 
+export async function loadDisplayControlsAvailable(pin: string): Promise<boolean> {
+  try {
+    const response = await request("/api/admin/capabilities", { cache: "no-store" }, pin);
+    const capabilities = await response.json() as { displayPower?: boolean; nightDisplay?: boolean };
+    return capabilities.displayPower === true && capabilities.nightDisplay === true;
+  } catch (error) {
+    if (error instanceof UnauthorizedError) throw error;
+    return false;
+  }
+}
+
 export function parseKeywordEditorValue(value: string) {
   return [
     ...new Set(

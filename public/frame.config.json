@@ -2,17 +2,17 @@
   "frameName": "Cornice Famiglia",
   "photoManifestUrl": "/photos/manifest.json",
   "weather": {
-    "city": "Portuense, Roma",
-    "latitude": 41.8667,
-    "longitude": 12.4569,
+    "city": "Roma",
+    "latitude": 41.9028,
+    "longitude": 12.4964,
     "timezone": "Europe/Rome",
-    "label": "Portuense, Roma",
+    "label": "Roma",
     "showLocationLabel": false,
     "refreshMinutes": 30
   },
   "calendar": {
-    "icsUrl": "/api/calendar.ics",
-    "sourcesUrl": "/api/calendar-sources.json",
+    "icsUrl": "/calendar/family.ics",
+    "sourcesUrl": "",
     "lookaheadDays": 12,
     "maxEvents": 7,
     "refreshMinutes": 15,

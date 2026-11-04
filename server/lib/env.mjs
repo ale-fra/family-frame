@@ -39,12 +39,7 @@ export function createRuntimeConfig() {
     settingsDbPath: path.join(dataDir, "settings.sqlite"),
     distDir: path.join(rootDir, "dist"),
     indexPath: path.join(rootDir, "dist", "index.html"),
-    refreshScript: process.env.FRAME_REFRESH_SCRIPT
-      ? path.resolve(process.env.FRAME_REFRESH_SCRIPT)
-      : path.join(rootDir, "scripts", "remote-refresh.sh"),
-    nightDisplayScript: process.env.FRAME_NIGHT_DISPLAY_SCRIPT
-      ? path.resolve(process.env.FRAME_NIGHT_DISPLAY_SCRIPT)
-      : path.join(rootDir, "scripts", "install-night-display.sh"),
+    configFile: process.env.FRAME_CONFIG_FILE ? path.resolve(process.env.FRAME_CONFIG_FILE) : "",
     port: Number(process.env.FRAME_PHOTO_SERVER_PORT || 8787),
     adminPin: process.env.FRAME_ADMIN_PIN || "",
     telegramToken: process.env.FRAME_TELEGRAM_BOT_TOKEN || "",
