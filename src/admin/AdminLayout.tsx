@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useTheme } from "./theme";
 import {
+  CalendarClock,
   ExternalLink,
   Frame,
   Image as ImageIcon,
@@ -22,6 +23,8 @@ type Props = {
   children: React.ReactNode;
   sectionTitle: string;
   sectionDescription: string;
+  /** The Routines section follows FRAME_LOCALE (the rest of the admin is Italian for now). */
+  routinesLabel: string;
 };
 
 export function AdminLayout({
@@ -31,7 +34,8 @@ export function AdminLayout({
   onLogout,
   children,
   sectionTitle,
-  sectionDescription
+  sectionDescription,
+  routinesLabel
 }: Props) {
   const { theme, toggle } = useTheme();
   const isDark = theme === "dark" || (theme === "system" && document.documentElement.classList.contains("dark"));
@@ -59,6 +63,12 @@ export function AdminLayout({
             icon={<ImageIcon className="h-4 w-4" />}
             label="Foto"
             badge={pendingCount > 0 ? pendingCount : undefined}
+          />
+          <SidebarLink
+            active={activeSection === "routines"}
+            onClick={() => onSectionChange("routines")}
+            icon={<CalendarClock className="h-4 w-4" />}
+            label={routinesLabel}
           />
           <SidebarLink
             active={activeSection === "settings"}
@@ -100,12 +110,13 @@ export function AdminLayout({
           <div className="flex items-center justify-between gap-4 px-6 py-4">
             <div className="min-w-0">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {activeSection === "photos" ? "Libreria" : "Configurazione"}
+                {activeSection === "photos" ? "Libreria" : activeSection === "routines" ? routinesLabel : "Configurazione"}
               </p>
               <h1 className="truncate text-xl font-semibold">{sectionTitle}</h1>
               <p className="truncate text-sm text-muted-foreground">{sectionDescription}</p>
             </div>
             <MobileNav
+              routinesLabel={routinesLabel}
               activeSection={activeSection}
               onSectionChange={onSectionChange}
               pendingCount={pendingCount}
@@ -161,6 +172,7 @@ function SidebarLink({
 }
 
 function MobileNav({
+  routinesLabel,
   activeSection,
   onSectionChange,
   pendingCount,
@@ -168,6 +180,7 @@ function MobileNav({
   isDark,
   onLogout
 }: {
+  routinesLabel: string;
   activeSection: AdminSection;
   onSectionChange: (section: AdminSection) => void;
   pendingCount: number;
@@ -190,6 +203,14 @@ function MobileNav({
             {pendingCount}
           </span>
         )}
+      </Button>
+      <Button
+        variant={activeSection === "routines" ? "default" : "ghost"}
+        size="icon"
+        onClick={() => onSectionChange("routines")}
+        aria-label={routinesLabel}
+      >
+        <CalendarClock className="h-4 w-4" />
       </Button>
       <Button
         variant={activeSection === "settings" ? "default" : "ghost"}

@@ -13,3 +13,7 @@ calendar-sources.json
 *.log
 .superpowers/
 exports/
+
+# Built on demand by docs/mockups/build.mjs (embeds the current frame code)
+docs/mockups/schedule-ui.html
+docs/mockups/*.png

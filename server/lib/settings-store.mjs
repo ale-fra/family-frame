@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { DatabaseSync } from "node:sqlite";
+import { openDatabase } from "./database.mjs";
 import {
   calendarSourceId,
   enabledCalendarSources,
@@ -8,12 +8,13 @@ import {
   normalizeSettings
 } from "./settings-utils.mjs";
 
-export function createSettingsStore(runtime, onSettingsWritten = () => {}) {
-  let settingsDb = null;
+/** @param options.db shared connection (see database.mjs); opened from runtime.settingsDbPath when omitted */
+export function createSettingsStore(runtime, onSettingsWritten = () => {}, { db = null } = {}) {
+  let settingsDb = db;
 
   function getSettingsDb() {
     if (!settingsDb) {
-      settingsDb = new DatabaseSync(runtime.settingsDbPath);
+      settingsDb = openDatabase(runtime.settingsDbPath);
     }
     return settingsDb;
   }

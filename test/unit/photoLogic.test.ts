@@ -6,7 +6,7 @@ import {
   normalizedSlideshowInterval,
   photoKey,
   samePhotoList
-} from "../src/frame/lib/photoLogic";
+} from "../../src/frame/lib/photoLogic";
 
 describe("photo slideshow logic", () => {
   const photos = [

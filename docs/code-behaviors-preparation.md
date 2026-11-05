@@ -32,7 +32,8 @@ It reads the current working tree, so uncommitted source changes are included. I
 
 Included: app/server TypeScript and JavaScript source, CSS, tests, build/test configuration,
 package/lock files, README, MIT license, `.gitignore`, a placeholder-only `.env.example`, and curated
-synthetic examples. The exported package exposes only dev/server/build/test/preview commands.
+synthetic examples. It also includes the API reference, type generator, and schedule mockup sources.
+The exported package exposes only the allowlisted portable app, test, and timer/token commands.
 Public photos, manifests, calendars and config are replaced with curated examples.
 
 Excluded: runtime `data/`, photos, SQLite files, real calendar feeds, `.env`, hardware tools,

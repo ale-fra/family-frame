@@ -2,13 +2,13 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPhotoServerApp } from "../server/lib/app.mjs";
-import { createSystemActions } from "../server/lib/system-actions.mjs";
+import { createFrameServerApp } from "../../server/lib/app.mjs";
+import { createSystemActions } from "../../server/lib/system-actions.mjs";
 
 describe("portable device boundary", () => {
   let directory, server, url, settings, writes;
   async function start(systemActions = createSystemActions()) {
-    const app = createPhotoServerApp({
+    const app = createFrameServerApp({
       runtime: { adminPin: "demo-test-pin", distDir: directory, photoDir: directory },
       calendarService: {}, clientLog: {}, photoStore: {}, systemActions,
       settingsStore: {

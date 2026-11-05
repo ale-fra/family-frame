@@ -1,5 +1,13 @@
+/** Regional settings from the server (FRAME_LOCALE, FRAME_TIMEZONE). No timeZone = the browser's. */
+export type FrameI18n = {
+  locale: string;
+  language?: string;
+  timeZone?: string;
+};
+
 export type FrameConfig = {
   frameName: string;
+  i18n: FrameI18n;
   photoManifestUrl: string;
   weather: {
     city?: string;
@@ -34,6 +42,7 @@ export type FrameConfig = {
 };
 
 export type FrameSettings = {
+  i18n?: FrameI18n;
   calendar?: {
     sources?: CalendarSource[];
     importantKeywords?: string[];

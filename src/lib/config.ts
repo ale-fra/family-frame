@@ -2,6 +2,7 @@ import type { FrameConfig, FrameSettings } from "./types";
 
 export const defaultConfig: FrameConfig = {
   frameName: "Cornice Famiglia",
+  i18n: { locale: "it-IT" },
   photoManifestUrl: "/photos/manifest.json",
   weather: {
     city: "Roma",
@@ -108,6 +109,7 @@ export function mergeConfig(loadedConfig: Partial<FrameConfig>, settings: FrameS
   return {
     ...defaultConfig,
     ...loadedConfig,
+    i18n: { ...defaultConfig.i18n, ...loadedConfig.i18n, ...settings.i18n },
     weather: { ...defaultConfig.weather, ...loadedConfig.weather },
     calendar: {
       ...mergedCalendar,

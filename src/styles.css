@@ -948,3 +948,217 @@ body:has(.admin-shell) {
     font-size: 18px;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------------------------
+   Timers and routines: the schedule stage covers the photo column while something is on (see ScheduleStage.tsx).
+   Cards are size containers, so drawings and text scale with the space each card gets (1, 2 or 3 cards).
+   --------------------------------------------------------------------------------------------------------------- */
+.frame-shell > .photo-stage,
+.frame-shell > .schedule-stage {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.frame-shell > .info-panel {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.photo-stage.is-covered {
+  visibility: hidden;
+}
+
+/* Colours of the countdowns; also used by the style previews in /admin (hence prefixed: --ring is Tailwind's). */
+.schedule-stage,
+.schedule-preview {
+  --calm: #2f9e8f;
+  --calm-soft: #d7efe9;
+  --soon: #e59400;
+  --schedule-ring: #e4572e;
+  --pause: #9aa39e;
+}
+
+.schedule-stage {
+  /* Size container: the cards' own padding and gaps (cq units) scale with the stage. */
+  container-type: size;
+  position: relative;
+  z-index: 3;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  min-height: 0;
+  padding: 22px;
+  border-radius: 8px;
+  background: radial-gradient(circle at 20% 10%, #fffaf0 0, #f6efe1 55%, #efe6d4 100%);
+}
+
+.schedule-stage.count-1 { grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
+.schedule-stage.count-2 { grid-template: minmax(0, 1fr) / repeat(2, minmax(0, 1fr)); }
+.schedule-stage.count-3 { grid-template: repeat(2, minmax(0, 1fr)) / minmax(0, 1.25fr) minmax(0, 1fr); }
+.schedule-stage.count-3 > .schedule-card:first-child { grid-row: 1 / 3; }
+
+.schedule-card {
+  --phase: var(--calm);
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3cqmin;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 5cqmin;
+  border-radius: 22px;
+  background: #fffcf4;
+  color: #26312e;
+  text-align: center;
+  box-shadow: 0 8px 22px rgba(79, 67, 49, 0.1);
+}
+
+/* Style previews in /admin: a small card without the stage around it. */
+.schedule-card.schedule-preview {
+  gap: 0;
+  padding: 6px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.schedule-preview .schedule-visual { width: min(82cqw, 82cqh); }
+.schedule-preview .visual-journey { width: 94cqw; }
+/* Sweets set their width inline on the frame (per number of sweets); previews just fill the box. */
+.schedule-preview .visual-sweets { width: 88cqw !important; }
+.schedule-preview .visual-sweets > svg { max-height: 80cqh; }
+
+.schedule-card.phase-soon { --phase: var(--soon); }
+.schedule-card.phase-paused { --phase: var(--pause); }
+.schedule-card.phase-ringing {
+  --phase: rgba(255, 255, 255, 0.38);
+  background: var(--schedule-ring);
+  color: #fff;
+  animation: schedule-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes schedule-pulse {
+  50% { transform: scale(1.02); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-card.phase-ringing { animation: none; }
+}
+
+.schedule-title {
+  margin: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: clamp(16px, 8.5cqmin, 60px);
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.schedule-remaining {
+  margin: 0;
+  color: var(--phase);
+  font-weight: 900;
+  line-height: 1;
+}
+.schedule-remaining b { font-size: clamp(26px, 17cqmin, 150px); }
+.schedule-remaining small { margin-left: 0.12em; font-size: clamp(14px, 8cqmin, 70px); }
+
+.schedule-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin: 0;
+  padding: 0.25em 0.8em;
+  border-radius: 999px;
+  background: #e7ebe8;
+  color: #5b645f;
+  font-size: clamp(13px, 6.5cqmin, 40px);
+  font-weight: 900;
+  white-space: nowrap;
+}
+.schedule-badge svg { width: 1em; height: 1em; }
+.phase-ringing .schedule-badge { background: #fff; color: var(--schedule-ring); }
+
+.schedule-meta {
+  margin: 0;
+  color: #6d756f;
+  font-size: clamp(12px, 5.5cqmin, 34px);
+  font-weight: 800;
+}
+
+.schedule-more {
+  position: absolute;
+  right: 30px;
+  bottom: 26px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: #26312e;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Visuals */
+.schedule-visual {
+  position: relative;
+  flex: none;
+  width: min(62cqw, 46cqh);
+  aspect-ratio: 1;
+  color: var(--phase);
+}
+.schedule-visual > svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.visual-journey { width: min(84cqw, 80cqh); aspect-ratio: 13 / 5; }
+.visual-sweets { width: min(80cqw, 56cqh); aspect-ratio: auto; }
+.visual-sweets > svg { height: auto; max-height: 46cqh; }
+.visual-party { display: grid; place-items: center; width: min(50cqw, 40cqh); color: #fff; }
+.visual-party > svg { width: 100%; height: 100%; }
+
+.schedule-icon {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff;
+  color: #26312e;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.schedule-icon svg { width: 56%; height: 56%; }
+.icon-center { left: 33%; top: 33%; width: 34%; height: 34%; }
+.icon-corner { right: -4%; bottom: -3%; width: 30%; height: 30%; background: var(--calm-soft); }
+.phase-ringing .schedule-icon { color: var(--schedule-ring); }
+.phase-ringing .icon-corner { background: #fff; }
+
+.disc-face { fill: #f1ece2; }
+.phase-ringing .disc-face { fill: rgba(255, 255, 255, 0.18); }
+.disc-slice { fill: currentColor; }
+.disc-tick { stroke: #b9b2a4; stroke-width: 1.2; stroke-linecap: round; }
+.disc-tick.major { stroke-width: 2.5; }
+.phase-ringing .disc-tick { stroke: rgba(255, 255, 255, 0.6); }
+
+.sweet { fill: none; stroke: currentColor; stroke-width: 2.4; }
+.sweet-fill { fill: currentColor; }
+
+.journey-dot { fill: #ddd5c6; }
+.journey-dot.walked { fill: currentColor; }
+.journey-snail { color: var(--phase); }
+.journey-goal { color: #26312e; }
+.phase-ringing .journey-dot { fill: rgba(255, 255, 255, 0.35); }
+.phase-ringing .journey-dot.walked,
+.phase-ringing .journey-snail,
+.phase-ringing .journey-goal { color: #fff; fill: #fff; }
+.phase-ringing .journey-snail svg,
+.phase-ringing .journey-goal svg { fill: none; }
+
+.clock-face { fill: #fff; stroke: #d8d0c2; stroke-width: 2.5; }
+.clock-zone { fill: var(--calm-soft); stroke: var(--calm); stroke-width: 1.5; }
+.clock-tick { stroke: #6d756f; stroke-width: 1.5; stroke-linecap: round; }
+.clock-tick.major { stroke-width: 3; }
+.clock-target { fill: var(--calm); }
+.clock-hand { stroke: #26312e; stroke-linecap: round; }
+.clock-hand.hour { stroke-width: 5; }
+.clock-hand.minute { stroke-width: 3.2; }
+.clock-pin { fill: #26312e; }
+.phase-ringing .clock-face { stroke: rgba(255, 255, 255, 0.6); }

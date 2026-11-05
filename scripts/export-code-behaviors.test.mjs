@@ -12,6 +12,12 @@ beforeEach(async () => {
     "src/app.ts": "export const uncommitted = true;",
     "server/app.mjs": "export const demo = true;",
     "test/app.test.ts": "// Synthetic test fixture",
+    "tools/generate-api-types.mjs": "// Generator fixture",
+    "docs/api.md": "# API reference fixture",
+    "docs/mockups/README.md": "# Mockup fixture",
+    "docs/mockups/screenshots.py": "# Screenshot helper fixture",
+    "docs/mockups/build.mjs": "// Mockup builder fixture",
+    "docs/mockups/schedule-ui.template.html": "<html></html>",
     "package.json": JSON.stringify({ scripts: { dev: "vite", server: "node server/app.mjs", build: "vite build", test: "vitest run", preview: "vite preview", kiosk: "must-not-export" } }),
     "package-lock.json": "{}", "index.html": "<html></html>",
     "tsconfig.json": "{}", "vite.config.ts": "", "vitest.config.ts": "", "components.json": "{}",
@@ -44,6 +50,8 @@ it("exports working-tree source and synthetic assets, excluding private state, a
   expect(JSON.parse(await fs.readFile(path.join(directory, "package.json"), "utf8")).scripts).not.toHaveProperty("kiosk");
   expect(await fs.readFile(path.join(directory, "public/frame.config.json"), "utf8")).toBe('{"frameName":"Demo"}');
   expect(listing).toContain("public/photos/demo-landscape.svg");
+  expect(listing).toContain("tools/generate-api-types.mjs");
+  expect(listing).toContain("docs/mockups/schedule-ui.template.html");
 });
 
 it("refuses symlinks in source trees instead of following them into private files", async () => {

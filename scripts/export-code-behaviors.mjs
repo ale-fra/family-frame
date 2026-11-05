@@ -32,15 +32,23 @@ export async function exportCodeBehaviors({ rootDir = projectRoot, outputDir = p
   const staging = await fs.mkdtemp(path.join(outputDir, "code-behaviors-"));
   const destination = path.join(staging, "family-frame");
   await fs.mkdir(destination);
-  for (const directory of ["src", "server", "test"]) {
+  for (const directory of ["src", "server", "test", "tools", "docs/mockups"]) {
     await copySourceTree(path.join(rootDir, directory), path.join(destination, directory));
   }
   for (const file of ["index.html", "tsconfig.json", "vite.config.ts", "vitest.config.ts", "components.json", "LICENSE", ".gitignore", ".env.example", "README.md"]) {
     await fs.copyFile(path.join(rootDir, file), path.join(destination, file));
   }
 
+  for (const file of ["docs/api.md", "docs/mockups/README.md", "docs/mockups/schedule-ui.template.html", "docs/mockups/screenshots.py"]) {
+    await fs.copyFile(path.join(rootDir, file), path.join(destination, file));
+  }
+
   const pkg = JSON.parse(await fs.readFile(path.join(rootDir, "package.json"), "utf8"));
-  pkg.scripts = Object.fromEntries(["dev", "server", "build", "test", "preview"].map((key) => [key, pkg.scripts[key]]));
+  const portableScripts = [
+    "dev", "server", "build", "test", "preview", "token", "timer", "add-3-min-timer", "generate:api-types",
+    "test:unit", "test:integration", "test:api", "test:e2e", "test:ui", "test:fast", "test:watch"
+  ];
+  pkg.scripts = Object.fromEntries(portableScripts.filter((key) => key in pkg.scripts).map((key) => [key, pkg.scripts[key]]));
   await fs.writeFile(path.join(destination, "package.json"), JSON.stringify(pkg, null, 2) + "\n");
   await fs.copyFile(path.join(rootDir, "package-lock.json"), path.join(destination, "package-lock.json"));
 

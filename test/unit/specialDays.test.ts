@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { easterDate, isSpecialDayActive } from "../src/frame/lib/specialDays";
+import { easterDate, isSpecialDayActive } from "../../src/frame/lib/specialDays";
 
 describe("special day schedules", () => {
   it("matches cross-year date ranges", () => {
