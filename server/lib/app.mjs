@@ -1,15 +1,29 @@
 import express from "express";
 import multer from "multer";
+import path from "node:path";
+import { createAdminAuth } from "./admin-auth.mjs";
+import { registerApiDocs } from "./api-docs.mjs";
+import {
+  createPublicScheduleRouter,
+  createRoutinesRouter,
+  createTimersRouter,
+  scheduleErrorHandler
+} from "./schedule-routes.mjs";
 import { enabledCalendarSources, mergeSettings, normalizeSettings } from "./settings-utils.mjs";
 
-export function createPhotoServerApp({
+export function createFrameServerApp({
   runtime,
   calendarService,
   clientLog,
   photoStore,
   settingsStore,
-  systemActions
+  systemActions,
+  scheduleStore,
+  scheduleEvents = null,
+  apiTokens = null
 }) {
+  // One instance, so the failed-attempt limiter is shared by every admin route.
+  const requireAdmin = createAdminAuth({ runtime, apiTokens });
   const frameEventClients = new Set();
   const upload = multer({
     storage: multer.memoryStorage(),
@@ -19,6 +33,11 @@ export function createPhotoServerApp({
     }
   });
   const app = express();
+  // Read-only, from FRAME_LOCALE and FRAME_TIMEZONE; added to settings responses, never stored. The frame formats
+  // its clock and dates with them, so the screen and routine times agree whatever the browser's own settings.
+  const withI18n = (settings) => (runtime.locale
+    ? { ...settings, i18n: { locale: runtime.locale, language: runtime.language, timeZone: runtime.timeZone } }
+    : settings);
 
   app.use(express.json({ limit: "1mb" }));
   app.use("/api", (_request, response, next) => {
@@ -29,7 +48,7 @@ export function createPhotoServerApp({
   if (runtime.configFile) {
     app.get("/frame.config.json", (_request, response) => {
       response.setHeader("Cache-Control", "no-store");
-      response.sendFile(runtime.configFile);
+      response.sendFile(path.basename(runtime.configFile), { root: path.dirname(runtime.configFile) });
     });
   }
   app.use(express.static(runtime.distDir, {
@@ -45,7 +64,7 @@ export function createPhotoServerApp({
     response.json({ ok: true });
   });
 
-  app.get("/api/admin/capabilities", requireAdmin(runtime), (_request, response) => {
+  app.get("/api/admin/capabilities", requireAdmin, (_request, response) => {
     response.json(systemActions.capabilities);
   });
 
@@ -123,7 +142,7 @@ export function createPhotoServerApp({
   });
 
   app.get("/api/settings", async (_request, response) => {
-    response.json(await settingsStore.readPublicSettings());
+    response.json(withI18n(await settingsStore.readPublicSettings()));
   });
 
   app.post("/api/client-log", async (request, response) => {
@@ -143,11 +162,11 @@ export function createPhotoServerApp({
     }
   });
 
-  app.get("/api/admin/settings", requireAdmin(runtime), async (_request, response) => {
-    response.json(await settingsStore.readSettings());
+  app.get("/api/admin/settings", requireAdmin, async (_request, response) => {
+    response.json(withI18n(await settingsStore.readSettings()));
   });
 
-  app.put("/api/admin/settings", requireAdmin(runtime), async (request, response) => {
+  app.put("/api/admin/settings", requireAdmin, async (request, response) => {
     const normalizedSettings = normalizeSettings(request.body);
     if (!normalizedSettings) {
       response.status(400).json({ error: "Unsupported settings payload" });
@@ -168,15 +187,16 @@ export function createPhotoServerApp({
       }
     }
     await settingsStore.writeSettings(settings);
-    emitFrameEvent(frameEventClients, "settings", { settings });
-    response.json(settings);
+    // /api/events is public: broadcast the public view (proxy URLs), never the private feed URLs.
+    emitFrameEvent(frameEventClients, "settings", { settings: await settingsStore.readPublicSettings() });
+    response.json(withI18n(settings));
   });
 
-  app.get("/api/admin/photos", requireAdmin(runtime), async (_request, response) => {
+  app.get("/api/admin/photos", requireAdmin, async (_request, response) => {
     response.json({ photos: await photoStore.listPhotos() });
   });
 
-  app.post("/api/admin/photos", requireAdmin(runtime), upload.array("photos"), async (request, response) => {
+  app.post("/api/admin/photos", requireAdmin, upload.array("photos"), async (request, response) => {
     const files = Array.isArray(request.files) ? request.files : [];
     const results = [];
 
@@ -196,7 +216,7 @@ export function createPhotoServerApp({
     });
   });
 
-  app.patch("/api/admin/photos/:id", requireAdmin(runtime), async (request, response) => {
+  app.patch("/api/admin/photos/:id", requireAdmin, async (request, response) => {
     const nextStatus = request.body?.status;
     if (!["pending", "approved", "hidden", "trashed"].includes(nextStatus)) {
       response.status(400).json({ error: "Unsupported status" });
@@ -221,7 +241,7 @@ export function createPhotoServerApp({
     response.json({ photo });
   });
 
-  app.post("/api/admin/photos/:id/optimize", requireAdmin(runtime), async (request, response) => {
+  app.post("/api/admin/photos/:id/optimize", requireAdmin, async (request, response) => {
     try {
       const photo = await photoStore.optimizePhoto(request.params.id, request.body);
       const photos = await photoStore.listPhotos();
@@ -240,7 +260,7 @@ export function createPhotoServerApp({
     }
   });
 
-  app.delete("/api/admin/photos/:id/optimize", requireAdmin(runtime), async (request, response) => {
+  app.delete("/api/admin/photos/:id/optimize", requireAdmin, async (request, response) => {
     try {
       const photo = await photoStore.removeOptimizedPhoto(request.params.id);
       const photos = await photoStore.listPhotos();
@@ -253,7 +273,7 @@ export function createPhotoServerApp({
     }
   });
 
-  app.delete("/api/admin/photos/:id", requireAdmin(runtime), async (request, response) => {
+  app.delete("/api/admin/photos/:id", requireAdmin, async (request, response) => {
     const db = await photoStore.readDb();
     const photo = db.photos.find((entry) => entry.id === request.params.id);
     if (!photo) {
@@ -270,7 +290,7 @@ export function createPhotoServerApp({
     response.json({ photo });
   });
 
-  app.post("/api/admin/refresh", requireAdmin(runtime), async (_request, response) => {
+  app.post("/api/admin/refresh", requireAdmin, async (_request, response) => {
     try {
       const started = await systemActions.triggerRefresh("admin-api");
       response.status(started ? 202 : 409).json({
@@ -282,7 +302,7 @@ export function createPhotoServerApp({
     }
   });
 
-  app.post("/api/admin/display/:action", requireAdmin(runtime), async (request, response) => {
+  app.post("/api/admin/display/:action", requireAdmin, async (request, response) => {
     const action = request.params.action;
     if (action !== "on" && action !== "off") {
       response.status(400).json({ error: "Unsupported display action" });
@@ -303,13 +323,27 @@ export function createPhotoServerApp({
     }
   });
 
+  const requireSchedule = requireAdmin.for("schedule");
+  if (runtime.apiDocs !== false) registerApiDocs(app, requireSchedule);
+
+  if (scheduleStore) {
+    const emit = (type, detail) => emitFrameEvent(frameEventClients, type, detail);
+    const schedulePaths = ["/api/admin/timers", "/api/admin/routines"];
+    scheduleEvents?.subscribe((event) => emit("schedule", event));
+    app.use("/api/admin/timers", requireSchedule, createTimersRouter(scheduleStore, emit, scheduleEvents));
+    app.use("/api/admin/routines", requireSchedule, createRoutinesRouter(scheduleStore, emit));
+    app.use("/api/schedule", createPublicScheduleRouter(scheduleStore));
+    // Body-parser errors (malformed JSON) happen before the routers; answer them as JSON too.
+    app.use(schedulePaths, scheduleErrorHandler);
+  }
+
   app.use((request, response, next) => {
     if (request.method !== "GET" || request.path.startsWith("/api/") || request.path.startsWith("/media/")) {
       next();
       return;
     }
 
-    response.sendFile(runtime.indexPath, (error) => {
+    response.sendFile(path.basename(runtime.indexPath), { root: path.dirname(runtime.indexPath) }, (error) => {
       if (error) {
         response.status(503).send("Family Frame has not been built yet. Run npm run build.");
       }
@@ -328,15 +362,4 @@ function emitFrameEvent(clients, type, detail = {}) {
       clients.delete(client);
     }
   }
-}
-
-function requireAdmin(runtime) {
-  return (request, response, next) => {
-    if (!runtime.adminPin || request.header("x-frame-admin-pin") === runtime.adminPin) {
-      next();
-      return;
-    }
-
-    response.status(401).json({ error: "Admin PIN required" });
-  };
 }

@@ -1,4 +1,6 @@
 import type { FrameSettings, PhotoManifest } from "@/lib/types";
+import type { ClockSample } from "./lib/clockSync";
+import type { PublicSchedule } from "./lib/scheduleDisplay";
 
 export type FrameServerEvent = {
   type: string;
@@ -47,19 +49,52 @@ export function logFrameEvent(event: string, details: Record<string, string | nu
   });
 }
 
+// One EventSource for the whole frame, shared by every listener (photos, settings, schedule). Browsers allow only
+// 6 connections per server over plain HTTP, and each open event stream holds one of them.
+const frameEventListeners = new Set<(event: FrameServerEvent) => void>();
+let frameEventSource: EventSource | null = null;
+
 export function subscribeFrameEvents(onEvent: (event: FrameServerEvent) => void) {
   if (typeof EventSource === "undefined") return () => {};
 
-  const source = new EventSource("/api/events");
-  source.onmessage = (message) => {
-    try {
-      onEvent(JSON.parse(message.data) as FrameServerEvent);
-    } catch {
-      // Ignore malformed event payloads; polling remains the fallback.
+  frameEventListeners.add(onEvent);
+  if (!frameEventSource) {
+    frameEventSource = new EventSource("/api/events");
+    frameEventSource.onmessage = (message) => {
+      let event: FrameServerEvent;
+      try {
+        event = JSON.parse(message.data) as FrameServerEvent;
+      } catch {
+        return; // Ignore malformed event payloads; polling remains the fallback.
+      }
+      for (const listener of [...frameEventListeners]) listener(event);
+    };
+  }
+
+  return () => {
+    frameEventListeners.delete(onEvent);
+    if (frameEventListeners.size === 0 && frameEventSource) {
+      frameEventSource.close();
+      frameEventSource = null;
     }
   };
+}
 
-  return () => source.close();
+/**
+ * GET /api/schedule, with a clock sample: the monotonic time before sending and when the response headers arrived.
+ * Returns null when the server cannot be reached.
+ */
+export async function fetchSchedule(): Promise<{ schedule: PublicSchedule; sample: ClockSample } | null> {
+  try {
+    const sentAt = performance.now();
+    const response = await fetch("/api/schedule", { cache: "no-store" });
+    const receivedAt = performance.now();
+    if (!response.ok) return null;
+    const schedule = await response.json() as PublicSchedule;
+    return { schedule, sample: { sentAt, receivedAt, serverTime: schedule.serverTime } };
+  } catch {
+    return null;
+  }
 }
 
 function frameClientId() {

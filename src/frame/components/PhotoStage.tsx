@@ -10,7 +10,8 @@ export function PhotoStage({
   activeSpecialDay,
   specialDayPulse,
   onPhotoLoaded,
-  onPhotoError
+  onPhotoError,
+  covered = false
 }: {
   stageRef: React.Ref<HTMLElement>;
   activePhoto?: Photo;
@@ -19,6 +20,8 @@ export function PhotoStage({
   specialDayPulse: number;
   onPhotoLoaded: (photo: Photo, image: HTMLImageElement) => void;
   onPhotoError: (photo: Photo) => void;
+  /** Timers cover the photo area: keep the photo loaded but hidden (special-day effects included). */
+  covered?: boolean;
 }) {
   const imageRef = React.useRef<HTMLImageElement | null>(null);
   const currentDisplaySrcRef = React.useRef("");
@@ -44,7 +47,7 @@ export function PhotoStage({
   }, [activePhoto, displaySrc, markPhotoLoaded]);
 
   return (
-    <section className="photo-stage" ref={stageRef}>
+    <section className={covered ? "photo-stage is-covered" : "photo-stage"} ref={stageRef} aria-hidden={covered || undefined}>
       <SpecialDayLayer specialDay={activeSpecialDay} pulse={specialDayPulse} />
       {activePhoto ? (
         <>

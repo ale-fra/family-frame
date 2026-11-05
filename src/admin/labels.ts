@@ -1,6 +1,6 @@
 import type { PhotoStatus, SpecialDaySchedule } from "@/lib/types";
 
-export type AdminSection = "photos" | "settings";
+export type AdminSection = "photos" | "routines" | "settings";
 
 export const adminTabs: Array<{ status: PhotoStatus; label: string }> = [
   { status: "pending", label: "Da approvare" },

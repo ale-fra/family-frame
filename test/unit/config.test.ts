@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultConfig, mergeConfig } from "../src/lib/config";
+import { defaultConfig, mergeConfig } from "../../src/lib/config";
 
 describe("mergeConfig", () => {
   it("applies settings calendar keywords over file config", () => {
@@ -18,6 +18,12 @@ describe("mergeConfig", () => {
     );
 
     expect(config.calendar.importantKeywords).toEqual(["settings"]);
+  });
+
+  it("takes the locale and time zone from the server (FRAME_LOCALE, FRAME_TIMEZONE)", () => {
+    expect(mergeConfig({}, {}).i18n).toEqual({ locale: "it-IT" });
+    expect(mergeConfig({}, { i18n: { locale: "en-GB", language: "en", timeZone: "Europe/London" } }).i18n)
+      .toEqual({ locale: "en-GB", language: "en", timeZone: "Europe/London" });
   });
 
   it("keeps pinned photo ids from runtime settings", () => {

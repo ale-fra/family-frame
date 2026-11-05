@@ -11,7 +11,11 @@ import {
   syncFailedPhotoKeys
 } from "../lib/photoLogic";
 
-export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPhotoId: string) {
+/**
+ * @param suspended stop advancing without touching the manual pause (used while timers cover the photos). When it
+ * ends, the current photo gets a full interval again.
+ */
+export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPhotoId: string, suspended = false) {
   const [photoIndex, setPhotoIndex] = React.useState(0);
   const [manualPaused, setManualPaused] = React.useState(false);
   const [loadedPhotoKey, setLoadedPhotoKey] = React.useState("");
@@ -24,6 +28,7 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
   const photoListCountRef = React.useRef(0);
   const activePhotoSelectedAtRef = React.useRef(Date.now());
   const slideshowIntervalSeconds = normalizedSlideshowInterval(intervalSeconds);
+  const paused = manualPaused || suspended;
   const currentPhotoIndex = activePhotoIndex(photoIndex, photos, pinnedPhotoId);
   const activePhoto = photos[currentPhotoIndex];
 
@@ -111,7 +116,7 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
   }, [clearPreparedPhoto, photos, pinnedPhotoId]);
 
   React.useEffect(() => {
-    if (!activePhoto || photos.length < 2 || manualPaused || pinnedPhotoId) {
+    if (!activePhoto || photos.length < 2 || paused || pinnedPhotoId) {
       clearPreparedPhoto();
       return;
     }
@@ -182,14 +187,14 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
     clearPreparedPhoto,
     currentPhotoIndex,
     loadedPhotoKey,
-    manualPaused,
+    paused,
     photos,
     pinnedPhotoId,
     preparedPhotoRevision
   ]);
 
   React.useEffect(() => {
-    if (!activePhoto || photos.length < 2 || manualPaused || pinnedPhotoId) return;
+    if (!activePhoto || photos.length < 2 || paused || pinnedPhotoId) return;
     if (loadedPhotoKey !== photoKey(activePhoto)) return;
 
     const timeouts: number[] = [];
@@ -231,7 +236,7 @@ export function useSlideshow(photos: Photo[], intervalSeconds: number, pinnedPho
     clearPreparedPhoto,
     currentPhotoIndex,
     loadedPhotoKey,
-    manualPaused,
+    paused,
     photos,
     pinnedPhotoId,
     slideshowIntervalSeconds

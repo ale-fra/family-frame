@@ -1,12 +1,4 @@
-import type {
-  AdminPhoto,
-  CalendarSource,
-  FrameConfig,
-  FrameSettings,
-  NightDisplaySettings,
-  PhotoOptimizationMode,
-  SpecialDayConfig
-} from "@/lib/types";
+import type { AdminPhoto, CalendarSource, FrameConfig, FrameI18n, FrameSettings, NightDisplaySettings, PhotoOptimizationMode, SpecialDayConfig } from "@/lib/types";
 import { defaultConfig, mergeConfig } from "@/lib/config";
 
 export class UnauthorizedError extends Error {
@@ -50,7 +42,7 @@ export function parseKeywordEditorValue(value: string) {
   ];
 }
 
-async function request(input: string, init: RequestInit, pin: string) {
+export async function request(input: string, init: RequestInit, pin: string) {
   const response = await fetch(input, {
     ...init,
     headers: { ...(init.headers || {}), ...authHeaders(pin) }
@@ -159,6 +151,8 @@ export type AdminSettingsBundle = {
   pinnedPhotoId: string;
   specialDayEvents: SpecialDayConfig[];
   disabledSpecialDayIds: string[];
+  /** FRAME_LOCALE / FRAME_TIMEZONE from the server (read-only). */
+  i18n: FrameI18n;
 };
 
 export const defaultNightDisplaySettings: NightDisplaySettings = {
@@ -185,7 +179,8 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
       nightDisplay: settings.display?.nightMode || defaultNightDisplaySettings,
       pinnedPhotoId: settings.slideshow?.pinnedPhotoId || "",
       specialDayEvents: settings.specialDays?.events || baseConfig.specialDays.events,
-      disabledSpecialDayIds: settings.specialDays?.disabledIds || []
+      disabledSpecialDayIds: settings.specialDays?.disabledIds || [],
+      i18n: { ...baseConfig.i18n, ...settings.i18n }
     };
   } catch (error) {
     if (error instanceof UnauthorizedError) throw error;
@@ -196,7 +191,8 @@ export async function loadAdminSettings(pin: string): Promise<AdminSettingsBundl
       nightDisplay: defaultNightDisplaySettings,
       pinnedPhotoId: "",
       specialDayEvents: baseConfig.specialDays.events,
-      disabledSpecialDayIds: []
+      disabledSpecialDayIds: [],
+      i18n: baseConfig.i18n
     };
   }
 }

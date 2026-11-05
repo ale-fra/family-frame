@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { createPhotoServerApp } from "../server/lib/app.mjs";
-import { createPhotoStore } from "../server/lib/photos.mjs";
+import { createFrameServerApp } from "../../server/lib/app.mjs";
+import { createPhotoStore } from "../../server/lib/photos.mjs";
 
 describe("photo optimization API", () => {
   let tempDir;
@@ -36,7 +36,7 @@ describe("photo optimization API", () => {
     photoStore = createPhotoStore(runtime, settingsStore);
     await photoStore.ensureStorage();
 
-    const app = createPhotoServerApp({
+    const app = createFrameServerApp({
       runtime,
       calendarService: {
         fetchCalendarIcs: async () => "",

@@ -5,12 +5,14 @@ import { activeSpecialDayForDate } from "./lib/specialDays";
 import { useCalendarEvents } from "./hooks/useCalendarEvents";
 import { useClock } from "./hooks/useClock";
 import { useFrameConfig } from "./hooks/useFrameConfig";
+import { useSchedule } from "./hooks/useSchedule";
 import { usePhotos } from "./hooks/usePhotos";
 import { useSlideshow } from "./hooks/useSlideshow";
 import { useSpecialDayPulse } from "./hooks/useSpecialDayPulse";
 import { useWeather } from "./hooks/useWeather";
 import { InfoPanel } from "./components/InfoPanel";
 import { PhotoStage } from "./components/PhotoStage";
+import { ScheduleStage } from "./components/ScheduleStage";
 
 declare global {
   interface Window {
@@ -22,11 +24,14 @@ export function FrameApp() {
   const config = useFrameConfig();
   const photos = usePhotos(config.photoManifestUrl);
   const pinnedPhotoId = config.slideshow.pinnedPhotoId || "";
-  const slideshow = useSlideshow(photos, config.slideshow.intervalSeconds, pinnedPhotoId);
+  const { schedule, serverNow } = useSchedule();
+  // True while timers or routines cover the photo area: the slideshow waits underneath.
+  const [scheduleActive, setScheduleActive] = React.useState(false);
+  const slideshow = useSlideshow(photos, config.slideshow.intervalSeconds, pinnedPhotoId, scheduleActive);
   const photoStageRef = React.useRef<HTMLElement | null>(null);
   const weather = useWeather(config.weather);
   const events = useCalendarEvents(config.calendar);
-  const clock = useClock();
+  const clock = useClock(serverNow, schedule);
   const specialDayPulse = useSpecialDayPulse(config.specialDays.ambientEveryMinutes);
   const activeSpecialDay = activeSpecialDayForDate(config.specialDays, clock);
 
@@ -79,10 +84,14 @@ export function FrameApp() {
         specialDayPulse={specialDayPulse}
         onPhotoLoaded={slideshow.handlePhotoLoaded}
         onPhotoError={slideshow.handlePhotoError}
+        covered={scheduleActive}
       />
+
+      <ScheduleStage schedule={schedule} serverNow={serverNow} i18n={config.i18n} onActiveChange={setScheduleActive} />
 
       <InfoPanel
         clock={clock}
+        i18n={config.i18n}
         weather={weather}
         events={events}
         maxEvents={config.calendar.maxEvents}

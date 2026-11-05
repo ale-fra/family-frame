@@ -12,6 +12,9 @@ import { defaultConfig } from "@/lib/config";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+import { routineMessages } from "./routines/messages";
+import { RoutinesSection } from "./routines/RoutinesSection";
+import type { FrameI18n } from "@/lib/types";
 import { PinGate } from "./PinGate";
 import { AdminLayout } from "./AdminLayout";
 import { PhotoOptimizationDialog } from "./PhotoOptimizationDialog";
@@ -58,6 +61,7 @@ export default function AdminApp() {
   const [nightDisplay, setNightDisplay] = React.useState<NightDisplaySettings>(defaultNightDisplaySettings);
   const [pinnedPhotoId, setPinnedPhotoId] = React.useState("");
   const [displayControlsAvailable, setDisplayControlsAvailable] = React.useState(false);
+  const [i18n, setI18n] = React.useState<FrameI18n>(defaultConfig.i18n);
 
   const handleUnauthorized = React.useCallback(() => {
     setNeedsPin(true);
@@ -97,6 +101,7 @@ export default function AdminApp() {
       setDisabledSpecialDayIds(bundle.disabledSpecialDayIds);
       setNightDisplay(bundle.nightDisplay);
       setPinnedPhotoId(bundle.pinnedPhotoId);
+      setI18n(bundle.i18n);
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         handleUnauthorized();
@@ -378,11 +383,16 @@ export default function AdminApp() {
     );
   }
 
-  const sectionTitle = activeSection === "photos" ? "Dashboard foto" : "Eventi e giornate speciali";
+  const routineTexts = routineMessages(i18n.language);
+  const sectionTitle = activeSection === "photos"
+    ? "Dashboard foto"
+    : activeSection === "routines" ? routineTexts.sectionTitle : "Eventi e giornate speciali";
   const sectionDescription =
     activeSection === "photos"
       ? "Carica, approva e gestisci la libreria della cornice."
-      : "Configura le parole calendario e i temi automatici della cornice.";
+      : activeSection === "routines"
+        ? routineTexts.sectionDescription
+        : "Configura le parole calendario e i temi automatici della cornice.";
 
   return (
     <div className="admin-root">
@@ -394,8 +404,11 @@ export default function AdminApp() {
           onLogout={logout}
           sectionTitle={sectionTitle}
           sectionDescription={sectionDescription}
+          routinesLabel={routineTexts.nav}
         >
-          {activeSection === "photos" ? (
+          {activeSection === "routines" ? (
+            <RoutinesSection pin={pin} i18n={i18n} onUnauthorized={handleUnauthorized} />
+          ) : activeSection === "photos" ? (
             <PhotosSection
               photos={photos}
               counts={counts}

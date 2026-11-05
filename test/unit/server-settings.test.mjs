@@ -4,7 +4,7 @@ import {
   mergeSettings,
   normalizeCalendarSources,
   normalizeSettings
-} from "../server/lib/settings-utils.mjs";
+} from "../../server/lib/settings-utils.mjs";
 
 describe("server settings normalization", () => {
   it("normalizes calendar sources and removes duplicate URLs", () => {

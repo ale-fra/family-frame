@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseEventTitle, parseEvents, uniqueCalendarEvents } from "../src/frame/lib/calendar";
+import { parseEventTitle, parseEvents, uniqueCalendarEvents } from "../../src/frame/lib/calendar";
 
 const calendar = `BEGIN:VCALENDAR
 VERSION:2.0
